@@ -2,28 +2,13 @@
   "name": "foreman",
   "version": "2.1.0",
   "description": "Autonomous end-to-end development system - from requirement to production-ready code with zero manual intervention",
-  "author": "Lukin",
+  "author": {
+    "name": "Lukin",
+    "email": "[email protected]"
+  },
+  "homepage": "https://github.com/mylukin/foreman",
+  "repository": "https://github.com/mylukin/foreman",
   "license": "MIT",
-  "minClaudeVersion": "1.0.0",
-  "engines": {
-    "claudeCode": ">=1.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/mylukin/foreman"
-  },
-  "requirements": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
-  },
-  "lifecycle": {
-    "install": {
-      "message": "🚀 Installing Foreman plugin...\n\nℹ️  The CLI will build automatically when you first use foreman.\n   If you want to build it now: cd ~/.claude/plugins/foreman/cli && npm install && npm run build\n\n⏱️  First use build time: ~15-30 seconds (one-time)\n📦 Subsequent uses: Instant"
-    },
-    "postInstall": {
-      "message": "✅ Foreman installed successfully!\n\n🚀 Quick start:\n  1. Optional: /detect-language (auto-detect project settings)\n  2. Run: /foreman \"your requirement here\"\n\n📖 The CLI will build automatically on first use.\n   See: shared/README.md for details\n\n💡 Examples:\n   /foreman \"Build a task management app with authentication\"\n   /foreman \"Add user profile editing feature\"\n\n🔗 Documentation: https://github.com/mylukin/foreman"
-    }
-  },
   "keywords": [
     "foreman",
     "autonomous",
@@ -31,113 +16,12 @@
     "code-generation",
     "tdd",
     "multi-language",
-    "self-healing"
+    "self-healing",
+    "task-management",
+    "workflow",
+    "pr-automation"
   ],
-  "capabilities": {
-    "languages": [
-      "typescript",
-      "javascript",
-      "python",
-      "go",
-      "rust",
-      "java",
-      "ruby",
-      "php",
-      "csharp",
-      "cpp",
-      "swift",
-      "kotlin",
-      "scala",
-      "any"
-    ],
-    "features": [
-      "interactive-clarification",
-      "autonomous-task-breakdown",
-      "tdd-enforcement",
-      "self-healing",
-      "code-review",
-      "auto-delivery",
-      "ai-language-detection"
-    ]
-  },
-  "skills": [
-    {
-      "name": "foreman-orchestrator",
-      "path": "skills/foreman-orchestrator/SKILL.md",
-      "userInvocable": true,
-      "description": "Main foreman orchestrator - 5-phase autonomous development workflow"
-    },
-    {
-      "name": "detect-language",
-      "path": "skills/detect-language/SKILL.md",
-      "userInvocable": true,
-      "description": "AI-powered language and framework detection for any programming language"
-    },
-    {
-      "name": "phase-1-clarify",
-      "path": "skills/phase-1-clarify/SKILL.md",
-      "userInvocable": false,
-      "description": "Interactive requirement clarification with structured questions"
-    },
-    {
-      "name": "phase-2-breakdown",
-      "path": "skills/phase-2-breakdown/SKILL.md",
-      "userInvocable": false,
-      "description": "Autonomous task breakdown into atomic, testable units"
-    },
-    {
-      "name": "phase-3-implement",
-      "path": "skills/phase-3-implement/SKILL.md",
-      "userInvocable": false,
-      "description": "Implementation loop with TDD and self-healing"
-    },
-    {
-      "name": "phase-4-heal",
-      "path": "skills/phase-4-heal/SKILL.md",
-      "userInvocable": false,
-      "description": "Self-healing error recovery using WebSearch"
-    },
-    {
-      "name": "phase-5-deliver",
-      "path": "skills/phase-5-deliver/SKILL.md",
-      "userInvocable": false,
-      "description": "Quality gates, commit creation, and PR delivery"
-    }
-  ],
-  "commands": [
-    {
-      "name": "foreman",
-      "path": "commands/foreman.md",
-      "description": "Start autonomous development from requirement to delivery"
-    }
-  ],
-  "agents": [
-    {
-      "name": "language-detector",
-      "path": "agents/language-detector.md",
-      "description": "Autonomous language and framework detection"
-    }
-  ],
-  "hooks": {
-    "sessionStart": "hooks/session-start.sh",
-    "autoCompact": "hooks/auto-compact.sh"
-  },
-  "configuration": {
-    "workspaceDir": {
-      "type": "string",
-      "default": "workspace",
-      "description": "Directory for foreman workspace (ai/tasks, ai/state.json, etc.)"
-    },
-    "defaultLanguage": {
-      "type": "string",
-      "default": "auto",
-      "description": "Default language detection: 'auto' (AI), 'template', or specific language"
-    },
-    "tddMode": {
-      "type": "string",
-      "default": "recommended",
-      "enum": ["strict", "recommended", "disabled"],
-      "description": "TDD enforcement level"
-    }
-  }
+  "commands": "./commands/",
+  "agents": "./agents/",
+  "skills": "./skills/"
 }
