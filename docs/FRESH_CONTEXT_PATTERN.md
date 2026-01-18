@@ -35,7 +35,7 @@ Running all 15-35 tasks in one orchestrator context causes:
 
 ```bash
 # Modified Phase 3 execution in autopilot-orchestrator
-/ralph-loop "Implement next pending task from workspace/ai/tasks/ using TDD" \
+/ralph-loop "Implement next pending task from .autopilot/tasks/ using TDD" \
   --max-iterations 35 \
   --completion-promise "autopilot-cli tasks list --status pending returns empty"
 ```
@@ -53,9 +53,9 @@ Running all 15-35 tasks in one orchestrator context causes:
 
 **Memory persists via:**
 - Git history (all previous implementations)
-- `workspace/ai/tasks/index.json` (task states)
-- `workspace/ai/progress.md` (learnings from each task)
-- `workspace/ai/prd.json` (living requirements with notes)
+- `.autopilot/tasks/index.json` (task states)
+- `.autopilot/progress.md` (learnings from each task)
+- `.autopilot/prd.json` (living requirements with notes)
 
 ### Ralph-Loop Prompt Template | Ralph-Loop 提示模板
 
@@ -86,7 +86,7 @@ You are executing ONE task from the Autopilot task queue with FRESH CONTEXT.
 4. On success:
    ```bash
    autopilot-cli tasks done "$TASK_ID" --duration "4m 32s"
-   echo "TASK_DONE:$TASK_ID" >> workspace/ai/progress.md
+   echo "TASK_DONE:$TASK_ID" >> .autopilot/progress.md
    git add . && git commit -m "feat($MODULE): $DESCRIPTION"
    ```
 
@@ -100,7 +100,7 @@ You are executing ONE task from the Autopilot task queue with FRESH CONTEXT.
 
 6. Update progress memory:
    ```bash
-   cat >> workspace/ai/progress.md <<EOF
+   cat >> .autopilot/progress.md <<EOF
    ## Task: $TASK_ID ($([ success ] && echo "PASSED" || echo "FAILED"))
    - Duration: $DURATION
    - Approach: $BRIEF_SUMMARY

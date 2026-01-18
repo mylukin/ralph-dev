@@ -140,8 +140,8 @@ node bin/autopilot-cli.js --version
 6. Phase 5: Verify quality gates and PR creation
 
 **Expected Results**:
-- PRD generated in `workspace/ai/prd.md`
-- Tasks created in `workspace/ai/tasks/{module}/{task}.md`
+- PRD generated in `.autopilot/prd.md`
+- Tasks created in `.autopilot/tasks/{module}/{task}.md`
 - All tasks implemented with tests
 - Auto-healing fixes common errors (missing deps, type errors)
 - Quality gates pass (typecheck, lint, tests, build)

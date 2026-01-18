@@ -86,7 +86,7 @@ Use CLI:
 
 **After:**
 ```
-ai/tasks/
+.autopilot/tasks/
 ├── index.json              # Lightweight index only
 ├── setup/
 │   ├── scaffold.md
@@ -271,15 +271,15 @@ autopilot-cli tasks update auth.login.ui --status passing
 
 ```bash
 # Parse PRD to extract user stories
-autopilot-cli prd parse ai/prd.md
+autopilot-cli prd parse .autopilot/prd.md
 # Output: JSON array of user stories
 
 # Generate tasks from PRD
-autopilot-cli prd generate-tasks ai/prd.md
-# Output: Creates task files in ai/tasks/
+autopilot-cli prd generate-tasks .autopilot/prd.md
+# Output: Creates task files in .autopilot/tasks/
 
 # Validate PRD format
-autopilot-cli prd validate ai/prd.md
+autopilot-cli prd validate .autopilot/prd.md
 ```
 
 #### 4. Verification | 验证
@@ -557,13 +557,13 @@ Instead of parsing PRD manually:
 
 ```bash
 # Generate tasks from PRD using CLI
-autopilot-cli prd generate-tasks ai/prd.md --output ai/tasks/
+autopilot-cli prd generate-tasks .autopilot/prd.md --output .autopilot/tasks/
 
 # This creates:
-# ai/tasks/index.json (lightweight index)
-# ai/tasks/setup/scaffold.md
-# ai/tasks/setup/dependencies.md
-# ai/tasks/auth/login.ui.md
+# .autopilot/tasks/index.json (lightweight index)
+# .autopilot/tasks/setup/scaffold.md
+# .autopilot/tasks/setup/dependencies.md
+# .autopilot/tasks/auth/login.ui.md
 # ... (all task files)
 ```
 
@@ -571,11 +571,11 @@ autopilot-cli prd generate-tasks ai/prd.md --output ai/tasks/
 
 ```bash
 # Check all tasks are appropriately sized
-autopilot-cli breakdown validate-all ai/tasks/
+autopilot-cli breakdown validate-all .autopilot/tasks/
 
 # If any task too large, split it
 for task in $(autopilot-cli tasks list --oversized); do
-  autopilot-cli breakdown split ai/tasks/${task}.md
+  autopilot-cli breakdown split .autopilot/tasks/${task}.md
 done
 ```
 
@@ -804,7 +804,7 @@ npm install commander chalk @types/node
 
 **New (V2):**
 ```markdown
-<!-- ai/tasks/auth/login.md -->
+<!-- .autopilot/tasks/auth/login.md -->
 ---
 id: auth.login
 module: auth
@@ -820,7 +820,7 @@ status: pending
 ```
 
 ```json
-// ai/tasks/index.json (lightweight)
+// .autopilot/tasks/index.json (lightweight)
 {
   "version": "2.0.0",
   "features": {

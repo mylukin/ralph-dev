@@ -45,7 +45,7 @@ Based on user feedback, we've made two critical improvements:
 
 ### After (prd.md primary) | 之后（Markdown 为主）
 
-**File:** `workspace/ai/prd.md`
+**File:** `.autopilot/prd.md`
 
 ```markdown
 ### Epic: Authentication
@@ -71,7 +71,7 @@ Create signup form component.
 - ✅ Checkboxes for tracking acceptance criteria
 - ✅ Human-friendly status icons (✅ 🔄 ⚠️ 📋)
 
-**Companion File:** `workspace/ai/prd.json` (minimal, machine-readable)
+**Companion File:** `.autopilot/prd.json` (minimal, machine-readable)
 
 ```json
 {
@@ -130,7 +130,7 @@ None
 
 ### After (progress.txt - minimal) | 之后（最小化）
 
-**File:** `workspace/ai/progress.txt`
+**File:** `.autopilot/progress.txt`
 
 ```
 # Autopilot Progress
@@ -225,7 +225,7 @@ git log --grep="feat(auth)"
 ## 📁 Updated File Structure
 
 ```
-workspace/ai/
+.autopilot/
 ├── prd.md              # PRIMARY - Human-readable PRD (Markdown)
 ├── prd.json            # SECONDARY - Machine-readable status (minimal)
 ├── progress.txt        # MINIMAL - One-page progress overview
@@ -252,7 +252,7 @@ workspace/ai/
 **Before:**
 ```bash
 # Generate prd.json with all details
-cat > workspace/ai/prd.json <<EOF
+cat > .autopilot/prd.json <<EOF
 {
   "stories": [...]
 }
@@ -262,7 +262,7 @@ EOF
 **After:**
 ```bash
 # Generate prd.md (human-readable)
-cat > workspace/ai/prd.md <<'EOF'
+cat > .autopilot/prd.md <<'EOF'
 # Project Requirements Document
 
 ## User Stories
@@ -273,7 +273,7 @@ cat > workspace/ai/prd.md <<'EOF'
 EOF
 
 # Generate minimal prd.json for CLI
-autopilot-cli prd init --from-md workspace/ai/prd.md
+autopilot-cli prd init --from-md .autopilot/prd.md
 ```
 
 ### Completing Task (Phase 5)
@@ -281,7 +281,7 @@ autopilot-cli prd init --from-md workspace/ai/prd.md
 **Before:**
 ```bash
 # Write detailed progress to progress.md
-cat >> workspace/ai/progress.md <<EOF
+cat >> .autopilot/progress.md <<EOF
 ## Task: auth.signup.ui (PASSED)
 Duration: 4m 32s
 ...
@@ -305,7 +305,7 @@ EOF
 )"
 
 # Minimal progress update
-echo "DONE: auth.signup.ui (4m32s) - $(git rev-parse --short HEAD)" >> workspace/ai/progress.txt
+echo "DONE: auth.signup.ui (4m32s) - $(git rev-parse --short HEAD)" >> .autopilot/progress.txt
 ```
 
 ---
@@ -379,11 +379,11 @@ autopilot-cli progress migrate --from progress.md
 
 ```bash
 # Start with new templates
-cp workspace/ai/prd.md.template workspace/ai/prd.md
-cp workspace/ai/progress.txt.template workspace/ai/progress.txt
+cp .autopilot/prd.md.template .autopilot/prd.md
+cp .autopilot/progress.txt.template .autopilot/progress.txt
 
 # Edit prd.md with your requirements
-vim workspace/ai/prd.md
+vim .autopilot/prd.md
 
 # Generate prd.json from prd.md
 autopilot-cli prd sync
@@ -405,9 +405,9 @@ autopilot-cli prd sync
 - Eliminates redundancy
 
 **Files:**
-- `workspace/ai/prd.md.template` - New Markdown PRD template
-- `workspace/ai/prd.json.template` - Simplified JSON (minimal)
-- `workspace/ai/progress.txt.template` - Minimal progress (replaced progress.md)
+- `.autopilot/prd.md.template` - New Markdown PRD template
+- `.autopilot/prd.json.template` - Simplified JSON (minimal)
+- `.autopilot/progress.txt.template` - Minimal progress (replaced progress.md)
 - `skills/phase-5-deliver/SKILL.md` - Updated with detailed commit messages
 
 ---

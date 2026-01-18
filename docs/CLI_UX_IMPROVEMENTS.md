@@ -29,7 +29,7 @@ $ autopilot-cli tasks create \
    Module: auth
    Priority: 1
    Estimated: 30 min
-   Location: workspace/ai/tasks/auth/signup.ui.md
+   Location: .autopilot/tasks/auth/signup.ui.md
 ```
 
 ### Task List

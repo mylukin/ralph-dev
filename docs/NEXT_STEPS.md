@@ -91,7 +91,7 @@ cd /Users/lukin/Projects/autopilot/workspace
 1. 生成 3-5 个结构化问题（A/B/C/D 选项）
 2. 收集用户答案
 3. 生成 PRD 文档
-4. 保存到 `workspace/ai/prd.md`
+4. 保存到 `.autopilot/prd.md`
 5. 更新状态: `autopilot-cli state update --phase breakdown`
 
 **参考**:
@@ -107,7 +107,7 @@ cd /Users/lukin/Projects/autopilot/workspace
 **创建文件**: `skills/phase-2-breakdown/SKILL.md`
 
 **要实现**:
-1. 读取 `workspace/ai/prd.md`
+1. 读取 `.autopilot/prd.md`
 2. 分解为原子任务（每个 <30分钟）
 3. 为每个任务调用 CLI 创建文件:
    ```bash
@@ -120,7 +120,7 @@ cd /Users/lukin/Projects/autopilot/workspace
 5. 等待用户输入 (yes/no/modify)
 
 **参考**:
-- `workspace/ai/tasks/` 的示例任务文件
+- `.autopilot/tasks/` 的示例任务文件
 - `cli/src/core/task-writer.ts`
 
 **验证**: Phase 1 → Phase 2 能生成任务文件

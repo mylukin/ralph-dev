@@ -15,7 +15,7 @@ Agent 会自动:
 2. 分析配置文件
 3. 推断语言、框架、工具
 4. 返回验证命令
-5. 保存到 `workspace/ai/tasks/index.json`
+5. 保存到 `.autopilot/tasks/index.json`
 
 ---
 
@@ -261,7 +261,7 @@ autopilot-cli detect --save
 - Dart (Flutter)
 
 ### Q3: 如果检测错误怎么办？
-**A:** 可以手动编辑 `workspace/ai/tasks/index.json` 中的 `metadata.languageConfig`:
+**A:** 可以手动编辑 `.autopilot/tasks/index.json` 中的 `metadata.languageConfig`:
 
 ```json
 {
@@ -377,7 +377,7 @@ Found files:
 3. pnpm test
 4. pnpm run build
 
-💾 Saved to workspace/ai/tasks/index.json
+💾 Saved to .autopilot/tasks/index.json
 
 # 4. 开始使用 Autopilot
 /autopilot "Add dark mode toggle"

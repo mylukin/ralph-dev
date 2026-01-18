@@ -38,13 +38,15 @@ temp/
 .claude/
 .claude-plugin/.local/
 
-# Autopilot workspace (runtime test data)
-workspace/ai/prd.md
-workspace/ai/tasks/
-workspace/ai/state.json
-workspace/ai/*.log
-workspace/ai/*.md
+# Autopilot - Ignore runtime state, keep documentation
+.autopilot/state.json
+.autopilot/progress.log
+.autopilot/debug.log
+.autopilot/tasks/index.json
 
-# Keep workspace structure
+# Keep PRD and task definitions (valuable documentation)
+!.autopilot/prd.md
+!.autopilot/tasks/**/*.md
+
+# Keep directory structure in repo template
 !workspace/.gitkeep
-!workspace/ai/.gitkeep

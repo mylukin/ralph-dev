@@ -20,7 +20,7 @@ Invoked by autopilot-orchestrator as Phase 5, after Phase 3 (Implement) complete
 ## Input | 输入
 
 - Completed tasks from Phase 3
-- Task directory: `workspace/ai/tasks/`
+- Task directory: `.autopilot/tasks/`
 - Implementation files: All modified/created files
 
 ## Execution | 执行
@@ -43,7 +43,7 @@ echo "$COMPLETED_TASKS" | jq -r '.[] | "  • \(.id) - \(.description)"'
 echo ""
 ```
 
-### Step 2: Run Quality Gates
+### Step 2: Run Quality Gates (Language-Agnostic)
 
 ```bash
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -55,120 +55,114 @@ echo "Every quality gate shows FULL COMMAND OUTPUT."
 echo "No assertions without evidence in same message."
 echo ""
 
-# Quality Gate 1: Type Checking
+# ═══════════════════════════════════════════
+# STEP 1: Read Language Configuration
+# ═══════════════════════════════════════════
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "1️⃣  Type Checking"
-echo ""
-echo "Running: npx tsc --noEmit"
+echo "🔧 Detecting Language Configuration..."
 echo ""
 
-TYPE_CHECK_RESULT=$(run_typecheck 2>&1)
-TYPE_CHECK_STATUS=$?
+# Read from index metadata (saved during Phase 2 or via detect --save)
+INDEX_JSON=$(autopilot-cli tasks list --json 2>/dev/null)
+LANGUAGE_CONFIG=$(echo "$INDEX_JSON" | jq -r '.metadata.languageConfig // empty')
 
-echo "$TYPE_CHECK_RESULT"
-echo ""
-echo "Exit code: $TYPE_CHECK_STATUS"
-echo ""
-
-if [ $TYPE_CHECK_STATUS -eq 0 ]; then
-  echo "✅ VERIFIED: No type errors (see output above)"
-else
-  echo "❌ VERIFIED: Type errors found (see output above)"
-  GATE_FAILED=true
-fi
-echo ""
-
-# Quality Gate 2: Linting
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "2️⃣  Linting"
-echo ""
-echo "Running: npm run lint"
-echo ""
-
-LINT_RESULT=$(run_lint 2>&1)
-LINT_STATUS=$?
-
-echo "$LINT_RESULT"
-echo ""
-echo "Exit code: $LINT_STATUS"
-echo ""
-
-if [ $LINT_STATUS -eq 0 ]; then
-  echo "✅ VERIFIED: No linting errors (see output above)"
-else
-  echo "❌ VERIFIED: Linting errors found (see output above)"
-  GATE_FAILED=true
-fi
-echo ""
-
-# Quality Gate 3: Tests
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "3️⃣  Running All Tests"
-echo ""
-echo "Running: npm test"
-echo ""
-
-TEST_RESULT=$(run_all_tests 2>&1)
-TEST_STATUS=$?
-
-echo "$TEST_RESULT"
-echo ""
-echo "Exit code: $TEST_STATUS"
-echo ""
-
-if [ $TEST_STATUS -eq 0 ]; then
-  # Extract test stats from actual output
-  TEST_COUNT=$(extract_test_count "$TEST_RESULT")
-  echo "✅ VERIFIED: All tests passed (see full output above)"
-  echo "   Test count: $TEST_COUNT"
-else
-  echo "❌ VERIFIED: Tests failed (see failures above)"
-  GATE_FAILED=true
-fi
-echo ""
-
-# Quality Gate 4: Build
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "4️⃣  Building Project"
-echo ""
-echo "Running: npm run build"
-echo ""
-
-BUILD_RESULT=$(run_build 2>&1)
-BUILD_STATUS=$?
-
-echo "$BUILD_RESULT"
-echo ""
-echo "Exit code: $BUILD_STATUS"
-echo ""
-
-if [ $BUILD_STATUS -eq 0 ]; then
-  echo "✅ VERIFIED: Build successful (see output above)"
-else
-  echo "❌ VERIFIED: Build failed (see errors above)"
-  GATE_FAILED=true
-fi
-echo ""
-
-# Check if any gate failed
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if [ "$GATE_FAILED" = true ]; then
-  echo "❌ Quality gates failed. Cannot proceed to delivery."
+# If no config found, run detection now
+if [ -z "$LANGUAGE_CONFIG" ] || [ "$LANGUAGE_CONFIG" = "null" ]; then
+  echo "⚠️  No language config in index. Running detection..."
   echo ""
-  echo "Review the FULL OUTPUT above for each failed gate."
-  echo "Fix issues and re-run Phase 5."
-  echo ""
-  return 1
+
+  DETECT_OUTPUT=$(autopilot-cli detect --save --json 2>&1)
+  DETECT_STATUS=$?
+
+  if [ $DETECT_STATUS -ne 0 ]; then
+    echo "❌ Language detection failed:"
+    echo "$DETECT_OUTPUT"
+    echo ""
+    echo "Cannot proceed without language configuration."
+    return 1
+  fi
+
+  # Re-read from index after saving
+  INDEX_JSON=$(autopilot-cli tasks list --json 2>/dev/null)
+  LANGUAGE_CONFIG=$(echo "$INDEX_JSON" | jq -r '.metadata.languageConfig')
 fi
 
-echo "✅ All quality gates passed!"
+# Extract language and verify commands
+DETECTED_LANGUAGE=$(echo "$LANGUAGE_CONFIG" | jq -r '.language')
+FRAMEWORK=$(echo "$LANGUAGE_CONFIG" | jq -r '.framework // "N/A"')
+VERIFY_COMMANDS=$(echo "$LANGUAGE_CONFIG" | jq -r '.verifyCommands[]' 2>/dev/null)
+
+echo "✅ Language detected: $DETECTED_LANGUAGE"
+[ "$FRAMEWORK" != "N/A" ] && echo "   Framework: $FRAMEWORK"
 echo ""
-echo "Evidence verified above for all 4 gates:"
-echo "  • Type checking: Full tsc output shown ✓"
-echo "  • Linting: Full lint output shown ✓"
-echo "  • Tests: Full test output shown ✓"
-echo "  • Build: Full build output shown ✓"
-echo ""
+echo "Verification commands to run:"
+if [ -z "$VERIFY_COMMANDS" ]; then
+  echo "   ⚠️  No verification commands configured for this language"
+  echo "   Quality gates will be skipped."
+  echo ""
+else
+  echo "$VERIFY_COMMANDS" | sed 's/^/   • /'
+  echo ""
+fi
+
+# ═══════════════════════════════════════════
+# STEP 2: Run Each Verification Command
+# ═══════════════════════════════════════════
+if [ -z "$VERIFY_COMMANDS" ]; then
+  echo "⚠️  Skipping quality gates (no commands configured)"
+  echo ""
+else
+  GATE_INDEX=0
+  GATE_FAILED=false
+
+  # Run each command from languageConfig.verifyCommands
+  while IFS= read -r cmd; do
+    GATE_INDEX=$((GATE_INDEX + 1))
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "${GATE_INDEX}️⃣  Running: $cmd"
+    echo ""
+
+    # Execute command and capture output
+    CMD_OUTPUT=$(eval "$cmd" 2>&1)
+    CMD_STATUS=$?
+
+    # Show full output
+    echo "$CMD_OUTPUT"
+    echo ""
+    echo "Exit code: $CMD_STATUS"
+    echo ""
+
+    # Check result
+    if [ $CMD_STATUS -eq 0 ]; then
+      echo "✅ VERIFIED: Command passed (see output above)"
+    else
+      echo "❌ VERIFIED: Command failed (see output above)"
+      GATE_FAILED=true
+    fi
+    echo ""
+
+  done <<< "$VERIFY_COMMANDS"
+
+  # ═══════════════════════════════════════════
+  # STEP 3: Final Gate Check
+  # ═══════════════════════════════════════════
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  if [ "$GATE_FAILED" = true ]; then
+    echo "❌ Quality gates failed. Cannot proceed to delivery."
+    echo ""
+    echo "Review the FULL OUTPUT above for each failed gate."
+    echo "Fix issues and re-run Phase 5."
+    echo ""
+    return 1
+  fi
+
+  echo "✅ All quality gates passed!"
+  echo ""
+  echo "Evidence verified above for $GATE_INDEX gate(s):"
+  echo "$VERIFY_COMMANDS" | sed 's/^/  • /' | sed 's/$/ ✓/'
+  echo ""
+fi
 ```
 
 ### Step 3: Two-Stage Code Review
@@ -389,82 +383,6 @@ summary: |\
 
 ## Helper Functions | 辅助函数
 
-### Run Type Check
-
-```bash
-run_typecheck() {
-  # Detect project type and run appropriate type checker
-  if [ -f "tsconfig.json" ]; then
-    npx tsc --noEmit 2>&1
-  elif [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
-    mypy . 2>&1 || echo "mypy not configured, skipping"
-  elif [ -f "go.mod" ]; then
-    go vet ./... 2>&1
-  else
-    echo "No type checking available for this project"
-    return 0
-  fi
-}
-```
-
-### Run Lint
-
-```bash
-run_lint() {
-  # Detect project type and run appropriate linter
-  if [ -f "package.json" ]; then
-    npm run lint 2>&1 || npx eslint . 2>&1 || echo "No linter configured"
-  elif [ -f "pyproject.toml" ]; then
-    pylint **/*.py 2>&1 || flake8 . 2>&1 || echo "No linter configured"
-  elif [ -f "go.mod" ]; then
-    golint ./... 2>&1 || echo "golint not available"
-  else
-    echo "No linting available for this project"
-    return 0
-  fi
-}
-```
-
-### Run All Tests
-
-```bash
-run_all_tests() {
-  # Detect project type and run all tests
-  if [ -f "package.json" ]; then
-    npm test 2>&1
-  elif [ -f "pytest.ini" ] || [ -f "pyproject.toml" ]; then
-    pytest 2>&1
-  elif [ -f "go.mod" ]; then
-    go test ./... 2>&1
-  elif [ -f "Cargo.toml" ]; then
-    cargo test 2>&1
-  else
-    echo "No test framework detected"
-    return 1
-  fi
-}
-```
-
-### Run Build
-
-```bash
-run_build() {
-  # Detect project type and run build
-  if [ -f "package.json" ]; then
-    npm run build 2>&1 || echo "No build script defined"
-  elif [ -f "setup.py" ]; then
-    python setup.py build 2>&1
-  elif [ -f "go.mod" ]; then
-    go build ./... 2>&1
-  elif [ -f "Cargo.toml" ]; then
-    cargo build 2>&1
-  else
-    echo "No build process detected"
-    return 0
-  fi
-}
-```
-
 ### Perform Spec Compliance Check
 
 ```bash
@@ -616,7 +534,7 @@ update_progress_txt() {
   local COMPLETED_TASKS=$1
   local COMMIT_SHA=$2
 
-  PROGRESS_FILE="workspace/ai/progress.txt"
+  PROGRESS_FILE=".autopilot/progress.txt"
 
   # Append completed tasks to progress file
   echo "$COMPLETED_TASKS" | jq -r '.[] | "\(.status | ascii_upcase): \(.id) (\(.duration // "N/A")) - commit \($commit)"' \
@@ -732,35 +650,14 @@ extract_acceptance_criteria() {
 find_task_file() {
   local TASK_ID=$1
 
-  # Convert task ID to file path (e.g., auth.login → workspace/ai/tasks/auth/login.md)
+  # Convert task ID to file path (e.g., auth.login → .autopilot/tasks/auth/login.md)
   MODULE=$(echo "$TASK_ID" | cut -d. -f1)
   FILENAME=$(echo "$TASK_ID" | cut -d. -f2-).md
 
-  echo "workspace/ai/tasks/$MODULE/$FILENAME"
+  echo ".autopilot/tasks/$MODULE/$FILENAME"
 }
 ```
 
-### Extract Test Count
-
-```bash
-extract_test_count() {
-  local TEST_OUTPUT=$1
-
-  # Try common patterns from different test frameworks
-  if echo "$TEST_OUTPUT" | grep -q "Tests:.*passed"; then
-    # Jest/Vitest pattern: "Tests: 24 passed, 24 total"
-    echo "$TEST_OUTPUT" | grep -oP "\d+(?= passed)"
-  elif echo "$TEST_OUTPUT" | grep -q "passed in"; then
-    # pytest pattern: "24 passed in 1.23s"
-    echo "$TEST_OUTPUT" | grep -oP "\d+(?= passed)"
-  elif echo "$TEST_OUTPUT" | grep -q "ok.*tests"; then
-    # Go pattern: "ok ... 24 tests in 1.234s"
-    echo "$TEST_OUTPUT" | grep -oP "\d+(?= tests)"
-  else
-    echo "unknown"
-  fi
-}
-```
 
 ## Error Handling | 错误处理
 

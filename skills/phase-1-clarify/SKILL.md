@@ -190,14 +190,14 @@ Save the generated PRD to workspace:
 
 ```bash
 # Ensure workspace directory exists
-mkdir -p workspace/ai
+mkdir -p .autopilot
 
 # Save PRD
-cat > workspace/ai/prd.md <<'EOF'
+cat > .autopilot/prd.md <<'EOF'
 {GENERATED_PRD_CONTENT}
 EOF
 
-echo "✅ PRD saved to workspace/ai/prd.md"
+echo "✅ PRD saved to .autopilot/prd.md"
 ```
 
 ### Step 6: Update State
@@ -219,7 +219,7 @@ Return structured result to orchestrator:
 ---PHASE RESULT---
 phase: clarify
 status: complete
-prd_file: workspace/ai/prd.md
+prd_file: .autopilot/prd.md
 next_phase: breakdown
 summary: |
   Generated PRD with {N} user stories across {M} epics.
@@ -283,7 +283,7 @@ A task management web application that allows users to create, organize, and tra
 1. **Ask minimum 3, maximum 5 questions** - Keep it concise
 2. **Use AskUserQuestion tool** - Don't ask questions in plain text
 3. **Generate comprehensive PRD** - Include all necessary sections
-4. **Save to workspace/ai/prd.md** - Standard location
+4. **Save to .autopilot/prd.md** - Standard location
 5. **Update state** - Always update to next phase
 6. **Return structured result** - Use YAML format
 

@@ -19,7 +19,7 @@ Invoked by autopilot-orchestrator as Phase 2, after Phase 1 (Clarify) completes.
 
 ## Input | 输入
 
-- PRD file location: `workspace/ai/prd.md`
+- PRD file location: `.autopilot/prd.md`
 - Current state from Phase 1
 
 ## Execution | 执行
@@ -28,7 +28,7 @@ Invoked by autopilot-orchestrator as Phase 2, after Phase 1 (Clarify) completes.
 
 ```bash
 # Read the PRD generated in Phase 1
-PRD_CONTENT=$(cat workspace/ai/prd.md)
+PRD_CONTENT=$(cat .autopilot/prd.md)
 
 echo "📖 Reading PRD..."
 echo "PRD length: $(echo "$PRD_CONTENT" | wc -l) lines"
@@ -100,8 +100,8 @@ autopilot-cli tasks create \
   --test-pattern "tests/auth/SignupForm.test.*"
 
 # CLI will:
-# 1. Create workspace/ai/tasks/auth/signup.ui.md with proper frontmatter
-# 2. Update workspace/ai/tasks/index.json automatically
+# 1. Create .autopilot/tasks/auth/signup.ui.md with proper frontmatter
+# 2. Update .autopilot/tasks/index.json automatically
 # 3. Show confirmation with file location
 
 # For each subsequent task, repeat the create command with different parameters
@@ -113,7 +113,7 @@ autopilot-cli tasks create \
    Module: auth
    Priority: 1
    Estimated: 20 min
-   Location: workspace/ai/tasks/auth/signup.ui.md
+   Location: .autopilot/tasks/auth/signup.ui.md
 ```
 
 **Helper function to extract goal from PRD:**
@@ -121,7 +121,7 @@ autopilot-cli tasks create \
 ```bash
 extract_goal_from_prd() {
   # Extract first paragraph under "## Project Overview"
-  sed -n '/## Project Overview/,/^##/p' workspace/ai/prd.md | \
+  sed -n '/## Project Overview/,/^##/p' .autopilot/prd.md | \
     sed '1d;$d' | \
     tr '\n' ' ' | \
     sed 's/  */ /g'
@@ -217,7 +217,7 @@ Use AskUserQuestion tool with:
     - label: "Yes, proceed"
       description: "Start implementing tasks as planned"
     - label: "Modify first"
-      description: "I'll edit tasks in workspace/ai/tasks/ before proceeding"
+      description: "I'll edit tasks in .autopilot/tasks/ before proceeding"
     - label: "Cancel"
       description: "Stop autopilot here"
 ```
@@ -234,7 +234,7 @@ case "$USER_RESPONSE" in
     ;;
   "Modify first")
     echo "⏸️  Paused for manual task editing"
-    echo "📝 Edit files in: workspace/ai/tasks/"
+    echo "📝 Edit files in: .autopilot/tasks/"
     echo "▶️  Resume with: /autopilot resume"
     autopilot-cli state update --phase breakdown
     exit 0
@@ -256,7 +256,7 @@ Return structured result to orchestrator:
 phase: breakdown
 status: complete
 tasks_created: {N}
-tasks_dir: workspace/ai/tasks
+tasks_dir: .autopilot/tasks
 estimated_hours: {X}
 next_phase: implement
 summary: |
@@ -319,7 +319,7 @@ testRequirements:
 **Input PRD**: Task management app with auth
 
 **Output**:
-- 35 tasks created in `workspace/ai/tasks/`
+- 35 tasks created in `.autopilot/tasks/`
 - Modules: setup (4), auth (10), tasks (16), deployment (5)
 - Estimated time: 8.5 hours
 - Priority order: 1-35

@@ -46,6 +46,50 @@ export class LanguageDetector {
       return this.detectJava(projectPath);
     }
 
+    // Ruby detection
+    if (fs.existsSync(path.join(projectPath, 'Gemfile'))) {
+      return this.detectRuby(projectPath);
+    }
+
+    // PHP detection
+    if (fs.existsSync(path.join(projectPath, 'composer.json'))) {
+      return this.detectPHP(projectPath);
+    }
+
+    // C# detection
+    if (
+      fs.existsSync(path.join(projectPath, '*.csproj')) ||
+      fs.existsSync(path.join(projectPath, '*.sln'))
+    ) {
+      return this.detectCSharp(projectPath);
+    }
+
+    // Swift detection
+    if (fs.existsSync(path.join(projectPath, 'Package.swift'))) {
+      return this.detectSwift(projectPath);
+    }
+
+    // Kotlin detection
+    if (
+      fs.existsSync(path.join(projectPath, 'build.gradle.kts')) ||
+      fs.existsSync(path.join(projectPath, 'settings.gradle.kts'))
+    ) {
+      return this.detectKotlin(projectPath);
+    }
+
+    // Scala detection
+    if (fs.existsSync(path.join(projectPath, 'build.sbt'))) {
+      return this.detectScala(projectPath);
+    }
+
+    // C++ detection
+    if (
+      fs.existsSync(path.join(projectPath, 'CMakeLists.txt')) ||
+      fs.existsSync(path.join(projectPath, 'Makefile'))
+    ) {
+      return this.detectCPP(projectPath);
+    }
+
     // Default fallback
     return {
       language: 'unknown',
@@ -232,5 +276,147 @@ export class LanguageDetector {
     }
 
     return undefined;
+  }
+
+  private static detectRuby(projectPath: string): LanguageConfig {
+    const verifyCommands: string[] = [];
+
+    // Linting
+    if (fs.existsSync(path.join(projectPath, '.rubocop.yml'))) {
+      verifyCommands.push('rubocop');
+    }
+
+    // Testing
+    if (fs.existsSync(path.join(projectPath, 'spec'))) {
+      verifyCommands.push('rspec');
+    } else if (fs.existsSync(path.join(projectPath, 'test'))) {
+      verifyCommands.push('rake test');
+    } else {
+      verifyCommands.push('bundle exec rake test');
+    }
+
+    return {
+      language: 'ruby',
+      testFramework: fs.existsSync(path.join(projectPath, 'spec')) ? 'rspec' : 'minitest',
+      verifyCommands,
+    };
+  }
+
+  private static detectPHP(projectPath: string): LanguageConfig {
+    const verifyCommands: string[] = [];
+
+    // Linting
+    if (fs.existsSync(path.join(projectPath, 'phpcs.xml')) ||
+        fs.existsSync(path.join(projectPath, 'vendor/bin/phpcs'))) {
+      verifyCommands.push('./vendor/bin/phpcs');
+    }
+
+    // Testing
+    if (fs.existsSync(path.join(projectPath, 'phpunit.xml')) ||
+        fs.existsSync(path.join(projectPath, 'vendor/bin/phpunit'))) {
+      verifyCommands.push('./vendor/bin/phpunit');
+    }
+
+    let framework: string | undefined;
+    try {
+      const composerJson = fs.readJSONSync(path.join(projectPath, 'composer.json'));
+      const deps = { ...composerJson.require, ...composerJson['require-dev'] };
+
+      if (deps.laravel || deps['laravel/framework']) framework = 'laravel';
+      else if (deps.symfony || deps['symfony/symfony']) framework = 'symfony';
+      else if (deps['cakephp/cakephp']) framework = 'cakephp';
+    } catch (e) {
+      // composer.json parsing failed, no framework detected
+    }
+
+    return {
+      language: 'php',
+      framework,
+      testFramework: 'phpunit',
+      verifyCommands,
+    };
+  }
+
+  private static detectCSharp(projectPath: string): LanguageConfig {
+    const verifyCommands: string[] = [
+      'dotnet format --verify-no-changes',
+      'dotnet test',
+      'dotnet build',
+    ];
+
+    return {
+      language: 'csharp',
+      testFramework: 'xunit',
+      buildTool: 'dotnet',
+      verifyCommands,
+    };
+  }
+
+  private static detectSwift(projectPath: string): LanguageConfig {
+    const verifyCommands: string[] = [
+      'swift build',
+      'swift test',
+    ];
+
+    return {
+      language: 'swift',
+      testFramework: 'XCTest',
+      buildTool: 'swift',
+      verifyCommands,
+    };
+  }
+
+  private static detectKotlin(projectPath: string): LanguageConfig {
+    const verifyCommands: string[] = [];
+
+    // Check if using Gradle wrapper
+    if (fs.existsSync(path.join(projectPath, 'gradlew'))) {
+      verifyCommands.push('./gradlew test', './gradlew build');
+    } else {
+      verifyCommands.push('gradle test', 'gradle build');
+    }
+
+    return {
+      language: 'kotlin',
+      buildTool: 'gradle',
+      verifyCommands,
+    };
+  }
+
+  private static detectScala(projectPath: string): LanguageConfig {
+    const verifyCommands: string[] = [
+      'sbt test',
+      'sbt compile',
+    ];
+
+    return {
+      language: 'scala',
+      testFramework: 'scalatest',
+      buildTool: 'sbt',
+      verifyCommands,
+    };
+  }
+
+  private static detectCPP(projectPath: string): LanguageConfig {
+    const verifyCommands: string[] = [];
+
+    // CMake project
+    if (fs.existsSync(path.join(projectPath, 'CMakeLists.txt'))) {
+      verifyCommands.push(
+        'cmake -B build',
+        'cmake --build build',
+        'ctest --test-dir build'
+      );
+    }
+    // Makefile project
+    else if (fs.existsSync(path.join(projectPath, 'Makefile'))) {
+      verifyCommands.push('make', 'make test');
+    }
+
+    return {
+      language: 'cpp',
+      buildTool: fs.existsSync(path.join(projectPath, 'CMakeLists.txt')) ? 'cmake' : 'make',
+      verifyCommands,
+    };
   }
 }

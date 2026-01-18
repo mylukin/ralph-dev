@@ -13,7 +13,7 @@ interface State {
 }
 
 export function registerStateCommands(program: Command, workspaceDir: string): void {
-  const stateFile = path.join(workspaceDir, 'ai', 'state.json');
+  const stateFile = path.join(workspaceDir, '.autopilot', 'state.json');
 
   const state = program.command('state').description('Manage autopilot state');
 

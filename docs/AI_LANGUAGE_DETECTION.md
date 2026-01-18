@@ -50,7 +50,7 @@ The skill will:
 2. Agent scans project structure
 3. Agent analyzes config files
 4. Returns JSON configuration
-5. Saves to `workspace/ai/tasks/index.json`
+5. Saves to `.autopilot/tasks/index.json`
 
 ### Method 2: Using CLI + Manual Agent
 
@@ -213,7 +213,7 @@ Source files:
 3. pnpm test              # Vitest
 4. pnpm run build         # Vite build
 
-💾 Saved to workspace/ai/tasks/index.json
+💾 Saved to .autopilot/tasks/index.json
 ```
 
 ### Python + Django
@@ -241,7 +241,7 @@ Source files:
 2. flake8                 # Linting
 3. pytest                 # Testing
 
-💾 Saved to workspace/ai/tasks/index.json
+💾 Saved to .autopilot/tasks/index.json
 ```
 
 ### Go
@@ -267,7 +267,7 @@ Source files:
 3. go test ./...          # Testing
 4. go build ./...         # Build
 
-💾 Saved to workspace/ai/tasks/index.json
+💾 Saved to .autopilot/tasks/index.json
 ```
 
 ## Edge Cases | 边缘情况

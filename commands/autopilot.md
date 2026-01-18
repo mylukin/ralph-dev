@@ -243,10 +243,10 @@ The orchestrator skill handles:
 
 ## Files Created | 创建的文件
 
-During execution, Autopilot creates these files in `workspace/ai/`:
+During execution, Autopilot creates these files in `.autopilot/`:
 
 ```
-workspace/ai/
+.autopilot/
 ├── state.json              # Current phase and progress
 ├── prd.md                  # Product Requirements Document
 ├── tasks/                  # Modular task storage
@@ -275,7 +275,7 @@ workspace/ai/
 
 ## Configuration | 配置
 
-Autopilot respects these settings in `workspace/ai/tasks/index.json`:
+Autopilot respects these settings in `.autopilot/tasks/index.json`:
 
 ```json
 {

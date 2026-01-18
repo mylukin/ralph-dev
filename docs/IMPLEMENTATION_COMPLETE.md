@@ -115,7 +115,7 @@ TOTAL                      ██████████ 100%  ✅ COMPLETE
 - ✅ 3-5 structured questions with A/B/C/D options
 - ✅ Uses AskUserQuestion tool
 - ✅ Generates comprehensive PRD
-- ✅ Saves PRD to `workspace/ai/prd.md`
+- ✅ Saves PRD to `.autopilot/prd.md`
 - ✅ Updates state to Phase 2
 
 **Key Sections**:
@@ -132,10 +132,10 @@ TOTAL                      ██████████ 100%  ✅ COMPLETE
 **File**: `skills/phase-2-breakdown/SKILL.md`
 
 **Functionality**:
-- ✅ Reads PRD from `workspace/ai/prd.md`
+- ✅ Reads PRD from `.autopilot/prd.md`
 - ✅ Breaks down into atomic tasks (<30 min each)
-- ✅ Creates modular task files in `workspace/ai/tasks/{module}/{task}.md`
-- ✅ Generates `workspace/ai/tasks/index.json`
+- ✅ Creates modular task files in `.autopilot/tasks/{module}/{task}.md`
+- ✅ Generates `.autopilot/tasks/index.json`
 - ✅ Uses AskUserQuestion for user approval
 - ✅ Updates state to Phase 3
 
@@ -291,12 +291,12 @@ User: /autopilot "Build a task management app with authentication"
 Phase 1: CLARIFY (2-5 min)
   - Asks 3-5 structured questions
   - Generates comprehensive PRD
-  - Saves to workspace/ai/prd.md
+  - Saves to .autopilot/prd.md
        ↓
 Phase 2: BREAKDOWN (5-10 min)
   - Reads PRD
   - Creates 35+ atomic tasks
-  - Modular storage: workspace/ai/tasks/
+  - Modular storage: .autopilot/tasks/
   - User approves plan
        ↓
 Phase 3: IMPLEMENT (60-120 min)

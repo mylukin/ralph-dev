@@ -1,6 +1,6 @@
 # Autopilot - Autonomous AI Development System
 
-**Version:** 1.0.0
+**Version:** 2.1.0
 **Status:** Implementation Ready
 **License:** MIT
 
@@ -12,7 +12,7 @@ Autopilot 是一个用于 Claude Code 的自主端到端开发系统，能够将
 
 **Key Features | 核心功能：**
 
-- 🌍 **Multi-Language Support** - Works with TypeScript, Python, Go, Rust, Java, Ruby, PHP, C#, Swift, and more
+- 🌍 **Multi-Language Support** - Native support for 12 programming languages
 - 🤖 **AI Language Detection** - Autonomous detection for ANY programming language (not just templates)
 - 🤔 **Interactive Clarification** - Asks structured questions to understand requirements
 - 📋 **Autonomous Task Breakdown** - Decomposes into atomic, testable tasks
@@ -21,6 +21,26 @@ Autopilot 是一个用于 Claude Code 的自主端到端开发系统，能够将
 - 🔍 **Two-Stage Code Review** - Spec compliance + code quality validation
 - 🚀 **Automatic Delivery** - Creates commits and pull requests automatically
 - ⚙️ **Hybrid Architecture** - Skills for intelligence + TypeScript CLI for efficiency (10x faster)
+
+### Supported Languages | 支持的语言
+
+| Language | Config Detection | Quality Gates | Framework Detection | Status |
+|----------|------------------|---------------|---------------------|--------|
+| **TypeScript** | package.json + tsconfig.json | Type check, Lint, Test, Build | React, Vue, Next.js, Angular | ✅ **Fully Supported** |
+| **JavaScript** | package.json | Lint, Test, Build | React, Vue, Express, Nuxt | ✅ **Fully Supported** |
+| **Python** | pyproject.toml, requirements.txt | mypy, flake8, pytest | Django, Flask, FastAPI | ✅ **Fully Supported** |
+| **Go** | go.mod | fmt, vet, test, build | Standard library | ✅ **Fully Supported** |
+| **Rust** | Cargo.toml | fmt, clippy, test, build | Cargo ecosystem | ✅ **Fully Supported** |
+| **Java** | pom.xml, build.gradle | test, package/build | Maven, Gradle | ✅ **Fully Supported** |
+| **Ruby** | Gemfile | rubocop, rspec/minitest | Rails, Sinatra | ✅ **Fully Supported** |
+| **PHP** | composer.json | phpcs, phpunit | Laravel, Symfony, CakePHP | ✅ **Fully Supported** |
+| **C#** | *.csproj, *.sln | format, test, build | .NET, xUnit | ✅ **Fully Supported** |
+| **Swift** | Package.swift | build, test | XCTest | ✅ **Fully Supported** |
+| **Kotlin** | build.gradle.kts | test, build | Gradle, Android | ✅ **Fully Supported** |
+| **Scala** | build.sbt | test, compile | sbt, ScalaTest | ✅ **Fully Supported** |
+| **C++** | CMakeLists.txt, Makefile | cmake/make, test | CMake, Make, CTest | ✅ **Fully Supported** |
+
+> **12 种语言完全支持**，包括类型检查、代码检查、测试和构建的自动化质量门禁。
 
 ## Quick Start | 快速开始
 
@@ -195,7 +215,7 @@ testRequirements:
 4. Unit tests pass (coverage >80%)
 ```
 
-Tasks are stored in `workspace/ai/tasks/{module}/{name}.md` with a lightweight `index.json` for fast lookups.
+Tasks are stored in `.autopilot/tasks/{module}/{name}.md` with a lightweight `index.json` for fast lookups.
 
 ### 3. Implementation Phase | 实现阶段
 

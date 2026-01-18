@@ -11,7 +11,7 @@ After user feedback, we simplified to **three essential files** with no redundan
 ## 📁 File Structure
 
 ```
-workspace/ai/
+.autopilot/
 ├── prd.md              # Requirements (Markdown, human-readable)
 ├── progress.txt        # Progress overview (minimal, one-page)
 └── tasks/
@@ -190,7 +190,7 @@ For specific task: git show b4e3c2d
 autopilot-cli tasks list --json
 
 # Or query tasks directly
-cat workspace/ai/tasks/index.json | jq '.tasks'
+cat .autopilot/tasks/index.json | jq '.tasks'
 ```
 
 ### ❌ No progress.md
@@ -209,7 +209,7 @@ git log --grep="auth.signup.ui"
 git show b4e3c2d
 
 # Want progress summary? Check progress.txt
-cat workspace/ai/progress.txt
+cat .autopilot/progress.txt
 ```
 
 ---
@@ -284,7 +284,7 @@ autopilot-cli tasks fail auth.signup.ui --reason "Missing OAuth credentials"
 
 ```bash
 # Quick summary
-cat workspace/ai/progress.txt
+cat .autopilot/progress.txt
 
 # Task details
 git log --grep="auth.signup.ui"
@@ -333,7 +333,7 @@ git log --oneline -10
 **Final file structure:**
 
 ```
-workspace/ai/
+.autopilot/
 ├── prd.md           # Requirements (Markdown, human-editable)
 ├── progress.txt     # Progress summary (auto-updated)
 └── tasks/

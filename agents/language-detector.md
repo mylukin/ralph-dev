@@ -387,7 +387,7 @@ Source files:
 3. pnpm test              # Vitest
 4. pnpm run build         # Vite build
 
-💾 Saving configuration to workspace/ai/tasks/index.json...
+💾 Saving configuration to .autopilot/tasks/index.json...
 ```
 
 ## Edge Cases | 边缘情况
@@ -479,4 +479,4 @@ The CLI will:
 1. Spawn this agent
 2. Agent performs detection
 3. Returns JSON result
-4. CLI saves to `workspace/ai/tasks/index.json` metadata
+4. CLI saves to `.autopilot/tasks/index.json` metadata

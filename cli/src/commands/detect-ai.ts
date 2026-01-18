@@ -79,7 +79,7 @@ export function registerDetectAICommand(program: Command, workspaceDir: string):
         }
 
         // Save to index
-        const tasksDir = path.join(workspaceDir, 'ai', 'tasks');
+        const tasksDir = path.join(workspaceDir, '.autopilot', 'tasks');
         const indexManager = new IndexManager(tasksDir);
         indexManager.updateMetadata({ languageConfig });
 

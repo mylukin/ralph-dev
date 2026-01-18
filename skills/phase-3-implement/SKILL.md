@@ -19,47 +19,149 @@ Invoked by autopilot-orchestrator as Phase 3, after Phase 2 (Breakdown) complete
 
 ## Input | 输入
 
-- Tasks directory: `workspace/ai/tasks/`
-- Task index: `workspace/ai/tasks/index.json`
+- Tasks directory: `.autopilot/tasks/`
+- Task index: `.autopilot/tasks/index.json`
 - Language config from index metadata
 
 ## Execution | 执行
 
 ### Step 1: Initialize Implementation Loop
 
-```bash
-# Get task count
-TASK_COUNT=$(cat workspace/ai/tasks/index.json | jq '.tasks | length')
-COMPLETED=0
-FAILED=0
-HEALED=0
+**CRITICAL: Verify total task count BEFORE starting loop.**
 
-echo "🚀 Starting implementation of $TASK_COUNT tasks..."
+```bash
+# Get total task count from index
+TOTAL_TASKS=$(autopilot-cli tasks list --json | jq 'length')
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🚀 Starting implementation of $TOTAL_TASKS tasks..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
+
+# Verify tasks exist
+if [ "$TOTAL_TASKS" -eq 0 ]; then
+  echo "❌ ERROR: No tasks found in index!"
+  echo "   Run Phase 2 (breakdown) first."
+  exit 1
+fi
+
+# Initialize counters
+COMPLETED_COUNT=0
+FAILED_COUNT=0
+HEALED_COUNT=0
+LOOP_ITERATIONS=0
+MAX_ITERATIONS=$((TOTAL_TASKS * 2))  # Safety: prevent infinite loops
 ```
 
-### Step 2: Implementation Loop
+### Step 2: Implementation Loop with Robust Verification
+
+**CRITICAL: This loop MUST NOT exit until ALL tasks are accounted for.**
 
 ```bash
 while true; do
-  # Get next pending task using CLI
+  LOOP_ITERATIONS=$((LOOP_ITERATIONS + 1))
+
+  # Safety check: prevent infinite loops
+  if [ $LOOP_ITERATIONS -gt $MAX_ITERATIONS ]; then
+    echo "❌ CRITICAL ERROR: Loop exceeded $MAX_ITERATIONS iterations!"
+    echo "   Expected $TOTAL_TASKS tasks, but processed $LOOP_ITERATIONS times."
+    echo "   This indicates a bug in task management. Aborting."
+    exit 1
+  fi
+
+  # ═══════════════════════════════════════════
+  # STEP 1: Get next pending task
+  # ═══════════════════════════════════════════
   TASK_JSON=$(autopilot-cli tasks next --json 2>/dev/null)
 
-  if [ -z "$TASK_JSON" ]; then
-    echo "✅ All tasks processed!"
+  # ═══════════════════════════════════════════
+  # STEP 2: Check if loop should exit
+  # ═══════════════════════════════════════════
+  if [ -z "$TASK_JSON" ] || echo "$TASK_JSON" | jq -e '.error' > /dev/null; then
+    # No more tasks from CLI - VERIFY before exiting
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🔍 No more pending tasks. Verifying completion..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # Count tasks by status
+    PENDING_COUNT=$(autopilot-cli tasks list --status pending --json 2>/dev/null | jq 'length')
+    IN_PROGRESS_COUNT=$(autopilot-cli tasks list --status in_progress --json 2>/dev/null | jq 'length')
+    ACTUAL_COMPLETED=$(autopilot-cli tasks list --status completed --json 2>/dev/null | jq 'length')
+    ACTUAL_FAILED=$(autopilot-cli tasks list --status failed --json 2>/dev/null | jq 'length')
+
+    # Calculate totals
+    ACCOUNTED_FOR=$((ACTUAL_COMPLETED + ACTUAL_FAILED))
+
+    echo "📊 Verification Results:"
+    echo "   Total tasks:    $TOTAL_TASKS"
+    echo "   Completed:      $ACTUAL_COMPLETED"
+    echo "   Failed:         $ACTUAL_FAILED"
+    echo "   Pending:        $PENDING_COUNT"
+    echo "   In Progress:    $IN_PROGRESS_COUNT"
+    echo "   Accounted for:  $ACCOUNTED_FOR"
+    echo ""
+
+    # ═══════════════════════════════════════════
+    # VERIFICATION: All tasks must be accounted for
+    # ═══════════════════════════════════════════
+    if [ $PENDING_COUNT -gt 0 ]; then
+      echo "❌ CRITICAL ERROR: Still have $PENDING_COUNT pending tasks!"
+      echo "   But CLI returned no next task. This is a bug."
+      echo ""
+      echo "Pending tasks:"
+      autopilot-cli tasks list --status pending
+      echo ""
+      echo "CANNOT proceed to Phase 5. Fix required."
+      exit 1
+    fi
+
+    if [ $IN_PROGRESS_COUNT -gt 0 ]; then
+      echo "❌ CRITICAL ERROR: Still have $IN_PROGRESS_COUNT tasks in_progress!"
+      echo "   These tasks are stuck. This is a bug."
+      echo ""
+      echo "In-progress tasks:"
+      autopilot-cli tasks list --status in_progress
+      echo ""
+      echo "CANNOT proceed to Phase 5. Fix required."
+      exit 1
+    fi
+
+    if [ $ACCOUNTED_FOR -ne $TOTAL_TASKS ]; then
+      echo "❌ CRITICAL ERROR: Task count mismatch!"
+      echo "   Expected: $TOTAL_TASKS tasks"
+      echo "   Got:      $ACCOUNTED_FOR tasks (completed + failed)"
+      echo "   Missing:  $((TOTAL_TASKS - ACCOUNTED_FOR)) tasks"
+      echo ""
+      echo "CANNOT proceed to Phase 5. All tasks must be accounted for."
+      exit 1
+    fi
+
+    # ✅ ALL CHECKS PASSED - Safe to exit
+    echo "✅ Verification passed! All $TOTAL_TASKS tasks accounted for."
+    echo "   Completed: $ACTUAL_COMPLETED"
+    echo "   Failed:    $ACTUAL_FAILED"
+    echo ""
     break
   fi
 
-  # Extract task details
-  TASK_ID=$(echo "$TASK_JSON" | jq -r '.id')
-  TASK_DESC=$(echo "$TASK_JSON" | jq -r '.description')
-  TASK_PRIORITY=$(echo "$TASK_JSON" | jq -r '.priority')
-  TASK_EST_MIN=$(echo "$TASK_JSON" | jq -r '.estimatedMinutes')
+  # ═══════════════════════════════════════════
+  # STEP 3: Process next task
+  # ═══════════════════════════════════════════
 
+  # Extract task details from enhanced next output
+  TASK_ID=$(echo "$TASK_JSON" | jq -r '.task.id')
+  TASK_DESC=$(echo "$TASK_JSON" | jq -r '.task.description')
+  TASK_PRIORITY=$(echo "$TASK_JSON" | jq -r '.task.priority')
+  TASK_EST_MIN=$(echo "$TASK_JSON" | jq -r '.task.estimatedMinutes')
+
+  echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "📝 Task: $TASK_ID (Priority $TASK_PRIORITY)"
+  echo "📝 Task: $TASK_ID (Priority P$TASK_PRIORITY)"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "📋 Description: $TASK_DESC"
-  echo "⏱️  Estimated: ${TASK_EST_MIN}min"
+  echo "⏱️  Estimated: ${TASK_EST_MIN} min"
   echo ""
 
   # Mark task as started
@@ -68,9 +170,23 @@ while true; do
   # Record start time
   START_TIME=$(date +%s)
 
-  # Implement the task
-  RESULT=$(implement_task "$TASK_ID" "$TASK_JSON")
-  STATUS=$?
+  # ═══════════════════════════════════════════
+  # STEP 4: Implement task using Task tool
+  # ═══════════════════════════════════════════
+  # See Step 3 for actual implementation (spawns subagent)
+  # This is where you call: Use Task tool with subagent_type="general-purpose"
+
+  echo "🤖 Spawning implementer subagent..."
+
+  # Build full implementer prompt from template in Step 3
+  # Then invoke Task tool (see Step 3 instructions)
+
+  # For now, this is a placeholder showing the flow
+  # The actual Task tool invocation is documented in Step 3
+
+  # Simulating task completion for pseudocode flow
+  # In real execution, you'll capture result from Task tool
+  IMPLEMENTATION_SUCCESS=true  # Replace with actual Task tool result
 
   # Record end time
   END_TIME=$(date +%s)
@@ -79,136 +195,310 @@ while true; do
   DURATION_SEC=$((DURATION % 60))
   DURATION_STR="${DURATION_MIN}m ${DURATION_SEC}s"
 
-  if [ $STATUS -eq 0 ]; then
+  # ═══════════════════════════════════════════
+  # STEP 5: Handle result
+  # ═══════════════════════════════════════════
+  if [ "$IMPLEMENTATION_SUCCESS" = true ]; then
     # Task succeeded
-    COMPLETED=$((COMPLETED + 1))
+    COMPLETED_COUNT=$((COMPLETED_COUNT + 1))
     autopilot-cli tasks done "$TASK_ID" --duration "$DURATION_STR"
 
-    echo "✅ $TASK_ID completed ($COMPLETED/$TASK_COUNT)"
+    echo "✅ $TASK_ID completed"
     echo "   Duration: $DURATION_STR"
     echo ""
   else
-    # Task failed
-    ERROR_MSG=$(echo "$RESULT" | jq -r '.error // "Unknown error"')
-
-    echo "⚠️  Error in $TASK_ID"
-    echo "   Error: $ERROR_MSG"
+    # Task failed - attempt auto-healing
+    echo "⚠️  Implementation failed for $TASK_ID"
     echo ""
 
-    # Attempt auto-healing
-    echo "🔧 Invoking auto-heal..."
-    HEAL_RESULT=$(invoke_heal "$TASK_ID" "$ERROR_MSG")
-    HEAL_STATUS=$?
+    echo "🔧 Attempting auto-heal..."
+    # Invoke phase-4-heal (see Step 4 for details)
+    # Use Skill tool to invoke "phase-4-heal"
 
-    if [ $HEAL_STATUS -eq 0 ]; then
-      # Healing succeeded, mark task as done
-      COMPLETED=$((COMPLETED + 1))
-      HEALED=$((HEALED + 1))
+    HEAL_SUCCESS=false  # Replace with actual heal result
+
+    if [ "$HEAL_SUCCESS" = true ]; then
+      # Healing succeeded
+      COMPLETED_COUNT=$((COMPLETED_COUNT + 1))
+      HEALED_COUNT=$((HEALED_COUNT + 1))
       autopilot-cli tasks done "$TASK_ID" --duration "$DURATION_STR (healed)"
 
-      echo "✅ Healed successfully!"
+      echo "✅ Auto-healed successfully!"
       echo ""
     else
-      # Healing failed, mark task as failed
-      FAILED=$((FAILED + 1))
-      autopilot-cli tasks fail "$TASK_ID" --reason "$ERROR_MSG"
+      # Healing failed - mark as failed and continue
+      FAILED_COUNT=$((FAILED_COUNT + 1))
+      autopilot-cli tasks fail "$TASK_ID" --reason "Implementation and healing failed"
 
-      echo "❌ Failed to heal. Marked as failed."
+      echo "❌ Could not heal. Marked as failed."
+      echo "   Will continue with remaining tasks."
       echo ""
     fi
   fi
 
-  # Show progress
-  TOTAL_PROCESSED=$((COMPLETED + FAILED))
-  PROGRESS_PCT=$((TOTAL_PROCESSED * 100 / TASK_COUNT))
+  # ═══════════════════════════════════════════
+  # STEP 6: Show progress
+  # ═══════════════════════════════════════════
+  TOTAL_PROCESSED=$((COMPLETED_COUNT + FAILED_COUNT))
+  PROGRESS_PCT=$((TOTAL_PROCESSED * 100 / TOTAL_TASKS))
 
-  echo "📊 Progress: $TOTAL_PROCESSED/$TASK_COUNT tasks ($PROGRESS_PCT%)"
-  echo "   ✅ Completed: $COMPLETED"
-  echo "   ❌ Failed: $FAILED"
-  echo "   🔧 Auto-healed: $HEALED"
+  echo "📊 Progress: $TOTAL_PROCESSED/$TOTAL_TASKS tasks ($PROGRESS_PCT%)"
+  echo "   ✅ Completed: $COMPLETED_COUNT"
+  echo "   ❌ Failed: $FAILED_COUNT"
+  if [ $HEALED_COUNT -gt 0 ]; then
+    echo "   🔧 Auto-healed: $HEALED_COUNT"
+  fi
   echo ""
+
+  # ═══════════════════════════════════════════
+  # STEP 7: Safety check - verify we're making progress
+  # ═══════════════════════════════════════════
+  if [ $TOTAL_PROCESSED -ge $TOTAL_TASKS ]; then
+    echo "✅ All $TOTAL_TASKS tasks processed. Exiting loop."
+    break
+  fi
 done
 ```
 
-### Step 3: Implement Single Task Function
+**IMPORTANT NOTES:**
 
-```bash
-implement_task() {
-  local TASK_ID=$1
-  local TASK_JSON=$2
+1. **Loop MUST NOT exit** until `completed + failed == total tasks`
+2. **Verification is mandatory** before breaking loop
+3. **If tasks are stuck** in pending/in_progress, loop will error (not silently fail)
+4. **Infinite loop protection** prevents runaway execution
+5. **Each task MUST use Task tool** to spawn subagent (see Step 3)
 
-  # Extract task details
-  local ACCEPTANCE_CRITERIA=$(echo "$TASK_JSON" | jq -r '.acceptanceCriteria[]')
-  local TEST_REQUIRED=$(echo "$TASK_JSON" | jq -r '.testRequirements.unit.required')
-  local TEST_PATTERN=$(echo "$TASK_JSON" | jq -r '.testRequirements.unit.pattern')
+### Step 3: Implement Single Task
 
-  # Spawn fresh implementer agent
-  echo "🤖 Spawning implementer agent for $TASK_ID..."
+**For EACH task, you MUST spawn a fresh implementer agent using the Task tool.**
 
-  # Use Task tool to invoke implementer agent
-  IMPLEMENTER_PROMPT="You are an implementer agent for task: $TASK_ID
+**CRITICAL:** Do NOT implement tasks yourself in the main session. ALWAYS use Task tool to spawn subagents.
 
-Task Details:
-$(echo "$TASK_JSON" | jq .)
+**Implementation Flow:**
 
-Your Mission:
-1. Implement this task following TDD workflow:
-   - RED: Write failing tests first
-   - GREEN: Implement minimum code to pass tests
-   - REFACTOR: Clean up code while keeping tests passing
+1. **Get task details from CLI:**
+   ```bash
+   TASK_JSON=$(autopilot-cli tasks next --json)
+   TASK_ID=$(echo "$TASK_JSON" | jq -r '.id')
+   ```
 
-2. Satisfy ALL acceptance criteria:
-$ACCEPTANCE_CRITERIA
+2. **Build implementer prompt:**
+   Read the full task file content and create a comprehensive prompt that includes:
+   - Task ID, description, module
+   - Full acceptance criteria
+   - Test requirements and patterns
+   - Dependencies
+   - TDD workflow instructions (see template below)
 
-3. Create test files matching pattern: $TEST_PATTERN
+3. **Spawn fresh implementer subagent using Task tool:**
 
-4. Ensure tests pass before completing
+   **MANDATORY: Use the Task tool with these parameters:**
 
-5. Follow the project's language and framework conventions
+   ```
+   Tool: Task
+   Parameters:
+     subagent_type: "general-purpose"
+     description: "Implement task: {task.id}"
+     prompt: "{full_implementer_prompt_from_template_below}"
+     run_in_background: false  (blocking - wait for completion)
+   ```
 
-CRITICAL: Only implement what's specified in acceptance criteria. No extra features.
+   **DO NOT skip this step. DO NOT implement in main session.**
 
-Start with tests, then implementation, then verification."
+4. **Wait for subagent to complete:**
+   - The subagent will follow TDD workflow
+   - Write tests first (RED phase)
+   - Implement code (GREEN phase)
+   - Refactor (REFACTOR phase)
+   - Verify all tests pass
+   - Report results
 
-  # Invoke implementer agent via Task tool
-  # (In real usage, this would spawn a fresh general-purpose agent)
-  # For now, simulate the implementation
+5. **Check subagent result:**
+   - If successful → Mark task as done using CLI
+   - If failed → Invoke Phase 4 (heal) for auto-recovery
+   - Update progress and continue to next task
 
-  # Actual invocation would be:
-  # Use Task tool with:
-  #   subagent_type: "general-purpose"
-  #   description: "Implement task $TASK_ID"
-  #   prompt: "$IMPLEMENTER_PROMPT"
+**Implementer Agent Prompt Template:**
 
-  # Simulated success/failure
-  # Return 0 for success, 1 for failure
-  return 0
-}
+Use this exact template when spawning implementer agents:
+
+```markdown
+You are an autonomous implementer agent for a single task in an autopilot workflow.
+
+## TASK INFORMATION
+
+**Task ID:** {task.id}
+**Module:** {task.module}
+**Priority:** P{task.priority}
+**Estimated:** {task.estimatedMinutes} minutes
+
+**Description:**
+{task.description}
+
+**Acceptance Criteria:**
+{list each criterion with checkboxes}
+- [ ] {criterion 1}
+- [ ] {criterion 2}
+...
+
+**Dependencies:** {list or "None"}
+**Test Pattern:** {task.testRequirements.unit.pattern}
+**Test Required:** {task.testRequirements.unit.required}
+
+---
+
+## TDD IRON LAW (MANDATORY - NO EXCEPTIONS)
+
+```
+NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 ```
 
-### Step 4: Invoke Healing Function
+**If you wrote code before the test → DELETE it completely. Start over.**
 
-```bash
-invoke_heal() {
-  local TASK_ID=$1
-  local ERROR_MSG=$2
+This is non-negotiable. No "reference", no "adaptation", no "keeping it".
+DELETE means DELETE.
 
-  echo "🔧 Invoking phase-4-heal for error recovery..."
+## WORKFLOW (TDD)
 
-  # Delegate to phase-4-heal skill
-  # Use Skill tool or direct invocation
+### 1. RED Phase - Write Failing Tests
 
-  # Heal function will:
-  # 1. WebSearch for error solution
-  # 2. Apply fix
-  # 3. Re-run tests
-  # 4. Return success/failure
+- Create test file: {test_pattern}
+- Write ONE minimal test for FIRST acceptance criterion
+- Run test → MUST show failure (not error, actual test failure)
+- Verify failure message is expected (feature missing, not typo)
+- **If test passes immediately → You're testing existing code, fix the test**
+- **If test errors → Fix error first, then verify it fails correctly**
 
-  # For now, simulate healing attempt
-  # Return 0 for successful heal, 1 for failed heal
-  return 1  # Simulate heal failure for now
-}
+### 2. GREEN Phase - Implement Minimum Code
+
+- Write SMALLEST amount of code to pass the ONE test
+- No extra features beyond what the test requires
+- No premature optimization
+- No refactoring of other code
+- Run tests → they MUST pass
+- **If test still fails → Fix code, NOT test**
+
+### 3. REFACTOR Phase - Clean Code (ONLY after GREEN)
+
+- Improve naming, structure
+- Remove duplication
+- Apply design patterns if appropriate
+- Run tests after EACH change → must stay passing
+- **If tests fail during refactor → Revert change immediately**
+
+### 4. REPEAT - Next Test
+
+- Go back to RED for next acceptance criterion
+- One test at a time, one feature at a time
+- Complete RED-GREEN-REFACTOR cycle for each
+
+### 5. VERIFY - Final Check
+
+Before marking complete, verify:
+- [ ] All tests pass ✓
+- [ ] Coverage >80% ✓
+- [ ] All acceptance criteria satisfied ✓
+- [ ] No linting errors ✓
+- [ ] Output pristine (no warnings, no console.log) ✓
+
+## VERIFICATION CHECKLIST (MANDATORY)
+
+Before marking task complete, verify EVERY item:
+
+- [ ] Every new function/method has a test
+- [ ] Watched each test fail BEFORE implementing (saw RED)
+- [ ] Each test failed for expected reason (feature missing, not typo)
+- [ ] Wrote minimal code to pass each test (no over-engineering)
+- [ ] All tests pass (run full test suite)
+- [ ] No test was written after the code (all tests-first)
+- [ ] Tests use real code, not mocks (unless unavoidable)
+- [ ] Edge cases and errors covered
+- [ ] No production code exists without a corresponding test
+
+**Cannot check all boxes? → Start over with TDD. No exceptions.**
+
+## RED FLAGS - STOP IMMEDIATELY
+
+If you catch yourself:
+- Writing code before test
+- Test passes on first run (didn't see it fail)
+- Adding multiple tests before any implementation
+- Implementing features not required by current test
+- "I'll add tests after to verify it works"
+- "This is too simple to test"
+- "I already manually tested it"
+- Keeping code written before tests "as reference"
+
+**ALL of these mean: DELETE CODE. Start over with TDD.**
+
+## CONSTRAINTS
+
+- Only implement what's specified in acceptance criteria
+- Follow TDD Iron Law strictly (tests ALWAYS first, no exceptions)
+- Use project's language/framework conventions
+- Keep code clean and simple
+- One test → One minimal implementation → Refactor → Repeat
+
+## OUTPUT REQUIREMENTS
+
+When done, report:
+1. **Files created/modified** (list all)
+2. **Test results** (X/Y tests passed, Z% coverage)
+3. **Duration** (actual time spent)
+4. **Issues encountered** (if any)
+5. **All acceptance criteria met** (confirm with checkboxes)
+
+**CRITICAL:** Do NOT exit until ALL acceptance criteria are satisfied and ALL tests pass.
+
+Start with RED phase now.
 ```
+
+### Step 4: Invoke Healing (When Implementer Fails)
+
+**When a task implementation fails, invoke Phase 4 (Heal) for automatic error recovery.**
+
+**Auto-Healing Flow:**
+
+1. **Capture error details:**
+   - Extract error message from implementer agent output
+   - Identify error type (dependency missing, syntax error, test failure, etc.)
+   - Note which acceptance criteria failed
+
+2. **Invoke phase-4-heal skill:**
+
+   **Use Skill tool to invoke healing:**
+
+   ```
+   Tool: Skill
+   Parameters:
+     skill: "phase-4-heal"
+     args: "--task-id {task.id} --error '{error_message}'"
+   ```
+
+   The heal skill will:
+   - WebSearch for error solution
+   - Apply fix automatically
+   - Re-run tests
+   - Return success/failure
+
+3. **Check healing result:**
+   - If healed successfully (tests pass):
+     * Mark task as completed
+     * Increment auto-healed counter
+     * Log to debug.log
+     * Continue to next task
+
+   - If healing failed (still errors after 3 attempts):
+     * Mark task as failed
+     * Log detailed error to debug.log
+     * Continue to next task (don't block entire workflow)
+
+4. **Update progress:**
+   ```bash
+   echo "🔧 Auto-healed: $HEALED_COUNT errors"
+   ```
+
+**IMPORTANT:** Auto-healing should be attempted ONCE per task failure. If healing fails, mark task as failed and move on. Do NOT retry indefinitely.
 
 ### Step 5: Final Summary
 
@@ -226,7 +516,7 @@ echo ""
 
 if [ $FAILED -gt 0 ]; then
   echo "⚠️  Some tasks failed. They are marked with status='failed'."
-  echo "   Review failed tasks in workspace/ai/tasks/"
+  echo "   Review failed tasks in .autopilot/tasks/"
   echo ""
 fi
 

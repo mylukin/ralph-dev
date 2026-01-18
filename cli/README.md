@@ -154,12 +154,12 @@ autopilot-cli tasks progress
 ```bash
 # Parse PRD
 autopilot-cli prd parse <file>
-autopilot-cli prd parse ai/prd.md
-autopilot-cli prd parse ai/prd.md --json
+autopilot-cli prd parse .autopilot/prd.md
+autopilot-cli prd parse .autopilot/prd.md --json
 
 # Generate tasks from PRD
 autopilot-cli prd generate-tasks <file>
-autopilot-cli prd generate-tasks ai/prd.md --output ai/tasks/
+autopilot-cli prd generate-tasks .autopilot/prd.md --output .autopilot/tasks/
 
 # Validate PRD
 autopilot-cli prd validate <file>

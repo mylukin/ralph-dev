@@ -199,7 +199,7 @@ node bin/autopilot-cli.js --version  # ✅ 输出: 1.0.0
 **状态**: ⏳ **待 Alpha 测试**
 
 已有:
-- ✅ `workspace/ai/tasks/` - 示例任务文件
+- ✅ `.autopilot/tasks/` - 示例任务文件
 - ✅ `TESTING.md` - 完整测试计划和场景
 
 待完成（非阻塞）:
@@ -245,7 +245,7 @@ node bin/autopilot-cli.js --version  # ✅ 输出: 1.0.0
 5. ✅ **实现 phase-1-clarify** (2-3小时)
    - 交互式问题生成
    - PRD 文档生成
-   - 保存到 workspace/ai/prd.md
+   - 保存到 .autopilot/prd.md
 
 6. ✅ **实现 phase-2-breakdown** (2-3小时)
    - 读取 PRD

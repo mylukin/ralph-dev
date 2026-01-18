@@ -46,7 +46,7 @@ Successfully migrated Autopilot from V1 (TypeScript-only, single tasks.json) to 
 - Risk of merge conflicts
 
 **After (V2):**
-- Modular markdown files: `ai/tasks/{module}/{name}.md`
+- Modular markdown files: `.autopilot/tasks/{module}/{name}.md`
 - YAML frontmatter + markdown content (agent-foreman pattern)
 - Lightweight `index.json` for fast lookups
 - Scales to 1000+ tasks
@@ -93,7 +93,7 @@ docs/
 ### Example Workspace
 
 ```
-workspace/ai/tasks/
+.autopilot/tasks/
 ├── index.json                      # Task index
 ├── setup/
 │   └── scaffold.md                # Example task
@@ -240,7 +240,7 @@ To verify the migration is complete:
 cd cli && npm install && npm run build
 
 # Check example workspace structure
-ls -la workspace/ai/tasks/
+ls -la .autopilot/tasks/
 
 # Check skills use CLI (grep for autopilot-cli)
 grep -r "autopilot-cli" skills/
@@ -260,7 +260,7 @@ grep "V2\|multi-language\|CLI" README.md docs/ARCHITECTURE.md
 
 ## Breaking Changes | 破坏性变更
 
-1. **File paths**: `.claude/autopilot/` → `workspace/ai/`
+1. **File paths**: `.claude/autopilot/` → `.autopilot/`
 2. **Task format**: Single `tasks.json` → Modular `tasks/*.md` files
 3. **CLI required**: Skills now depend on `autopilot-cli` being available
 4. **State management**: Must use CLI commands, not direct file edits
@@ -307,7 +307,7 @@ If you have questions about the V2 migration:
 
 1. Read `docs/ARCHITECTURE.md` for V2 design details
 2. Read `cli/README.md` for CLI tool specification
-3. Check example tasks in `workspace/ai/tasks/`
+3. Check example tasks in `.autopilot/tasks/`
 4. Review updated `skills/autopilot-orchestrator/SKILL.md`
 
 ---

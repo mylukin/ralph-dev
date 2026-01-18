@@ -23,7 +23,7 @@ You are the autopilot system orchestrator. Your mission: Transform a user requir
 
 ## State Management
 
-All state persists in `workspace/ai/`:
+All state persists in `.autopilot/`:
 - `state.json` - Current phase, progress, errors (managed by CLI)
 - `prd.md` - Product requirements document
 - `tasks/` - Modular task storage (agent-foreman style)
@@ -98,7 +98,7 @@ Phase 2/5: Breaking down into tasks...
 
 Read PRD:
 ```bash
-PRD=$(cat workspace/ai/prd.md)
+PRD=$(cat .autopilot/prd.md)
 ```
 
 Delegate to `phase-2-breakdown` skill:
@@ -113,7 +113,7 @@ Execute task breakdown:
 1. Extract user stories from PRD
 2. Convert each story to 1-3 atomic tasks (max 30 min each)
 3. Use CLI to create tasks: autopilot-cli tasks create
-4. CLI will create modular markdown files in workspace/ai/tasks/
+4. CLI will create modular markdown files in .autopilot/tasks/
 5. Assign dependencies and priorities
 6. Return task summary"
   context: fork

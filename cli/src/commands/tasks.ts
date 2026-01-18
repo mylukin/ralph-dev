@@ -1,12 +1,14 @@
 import { Command } from 'commander';
 import * as path from 'path';
+import * as fs from 'fs-extra';
+import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { TaskParser, Task } from '../core/task-parser';
 import { TaskWriter } from '../core/task-writer';
 import { IndexManager } from '../core/index-manager';
 
 export function registerTaskCommands(program: Command, workspaceDir: string): void {
-  const tasksDir = path.join(workspaceDir, 'ai', 'tasks');
+  const tasksDir = path.join(workspaceDir, '.autopilot', 'tasks');
   const indexManager = new IndexManager(tasksDir);
 
   const tasks = program.command('tasks').description('Manage tasks');
@@ -116,7 +118,7 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
   // Get next task
   tasks
     .command('next')
-    .description('Get next task to work on')
+    .description('Get next task to work on with comprehensive context')
     .option('--json', 'Output as JSON')
     .action((options) => {
       const nextTaskId = indexManager.getNextTask();
@@ -138,33 +140,163 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
 
       const task = TaskParser.parseTaskFile(filePath);
 
-      if (options.json) {
-        console.log(JSON.stringify(task, null, 2));
-      } else {
-        console.log(chalk.bold(`Next Task: ${chalk.cyan(task.id)}`));
-        console.log(`Priority: ${task.priority}`);
-        console.log(`Status: ${chalk.yellow(task.status)}`);
-        console.log(`\nDescription: ${task.description}`);
+      // === Gather comprehensive context ===
+      const context: any = {};
 
-        console.log(chalk.bold('\nAcceptance Criteria:'));
+      // 1. Current directory
+      context.currentDirectory = process.cwd();
+
+      // 2. Git information
+      try {
+        const gitBranch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim();
+        const gitLog = execSync('git log -1 --pretty=format:"%h|%s|%ar"', { encoding: 'utf-8' }).trim();
+        const [hash, message, time] = gitLog.split('|');
+        context.git = {
+          branch: gitBranch,
+          lastCommit: { hash, message, time },
+        };
+      } catch (error) {
+        context.git = { error: 'Not a git repository or no commits' };
+      }
+
+      // 3. State context
+      const stateFile = path.join(workspaceDir, '.autopilot', 'state.json');
+      if (fs.existsSync(stateFile)) {
+        context.state = fs.readJSONSync(stateFile);
+      }
+
+      // 4. Progress statistics
+      const index = indexManager.readIndex();
+      const allTasks = Object.entries(index.tasks);
+      const completed = allTasks.filter(([, t]) => t.status === 'completed').length;
+      const failed = allTasks.filter(([, t]) => t.status === 'failed').length;
+      const inProgress = allTasks.filter(([, t]) => t.status === 'in_progress').length;
+      const pending = allTasks.filter(([, t]) => t.status === 'pending').length;
+      const total = allTasks.length;
+
+      context.progress = {
+        completed,
+        failed,
+        inProgress,
+        pending,
+        total,
+        percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+      };
+
+      // 5. Recent activity from progress.log
+      const progressLog = path.join(workspaceDir, '.autopilot', 'progress.log');
+      context.recentActivity = [];
+      if (fs.existsSync(progressLog)) {
+        try {
+          const logContent = fs.readFileSync(progressLog, 'utf-8');
+          const lines = logContent.trim().split('\n');
+          context.recentActivity = lines.slice(-5); // Last 5 entries
+        } catch (error) {
+          context.recentActivity = ['Unable to read progress log'];
+        }
+      }
+
+      // 6. Check task dependencies
+      const dependencyStatus: any[] = [];
+      if (task.dependencies && task.dependencies.length > 0) {
+        task.dependencies.forEach(depId => {
+          const depTask = index.tasks[depId];
+          if (depTask) {
+            dependencyStatus.push({
+              id: depId,
+              status: depTask.status,
+              satisfied: depTask.status === 'completed',
+            });
+          } else {
+            dependencyStatus.push({
+              id: depId,
+              status: 'unknown',
+              satisfied: false,
+            });
+          }
+        });
+      }
+
+      // === Output ===
+      if (options.json) {
+        console.log(JSON.stringify({
+          task,
+          context,
+          dependencyStatus,
+        }, null, 2));
+      } else {
+        // Beautiful formatted output
+        console.log(chalk.bold('┌─────────────────────────────────────────────────────────────────┐'));
+        console.log(chalk.bold('│ 📍 CONTEXT                                                      │'));
+        console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+        console.log(`│ ${chalk.gray('Current Directory:')} ${chalk.cyan(context.currentDirectory.slice(-50))}`);
+
+        if (context.git.branch) {
+          console.log(`│ ${chalk.gray('Git Branch:')} ${chalk.green(context.git.branch)}`);
+          console.log(`│ ${chalk.gray('Last Commit:')} ${chalk.yellow(context.git.lastCommit.hash)} "${context.git.lastCommit.message.slice(0, 35)}" ${chalk.gray(context.git.lastCommit.time)}`);
+        }
+
+        if (context.state) {
+          console.log(`│ ${chalk.gray('Phase:')} ${chalk.magenta(context.state.phase)} ${chalk.gray('(Phase 3/5)')}`);
+        }
+
+        console.log(`│ ${chalk.gray('Progress:')} ${chalk.green(context.progress.completed)}/${context.progress.total} tasks completed (${context.progress.percentage}%)`);
+        if (context.progress.failed > 0) {
+          console.log(`│ ${chalk.gray('Failed:')} ${chalk.red(context.progress.failed)} tasks`);
+        }
+        if (context.progress.inProgress > 0) {
+          console.log(`│ ${chalk.gray('In Progress:')} ${chalk.yellow(context.progress.inProgress)} tasks`);
+        }
+
+        console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+        console.log(chalk.bold('│ 📝 NEXT TASK                                                    │'));
+        console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+        console.log(`│ ${chalk.gray('ID:')} ${chalk.cyan(task.id)}`);
+        console.log(`│ ${chalk.gray('Module:')} ${chalk.blue(task.module)}`);
+        console.log(`│ ${chalk.gray('Priority:')} P${task.priority}`);
+        console.log(`│ ${chalk.gray('Estimated:')} ${task.estimatedMinutes} min`);
+        console.log(`│ ${chalk.gray('Status:')} ${chalk.yellow(task.status)}`);
+        console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+        console.log(chalk.bold('│ Description:                                                    │'));
+        console.log(`│ ${task.description}`);
+
+        console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+        console.log(chalk.bold('│ Acceptance Criteria:                                            │'));
         task.acceptanceCriteria.forEach((criterion, index) => {
-          console.log(`  ${index + 1}. ${criterion}`);
+          console.log(`│ ${chalk.green(`${index + 1}.`)} ${criterion.slice(0, 58)}`);
         });
 
-        if (task.dependencies && task.dependencies.length > 0) {
-          console.log(chalk.bold('\nDependencies:'));
-          task.dependencies.forEach(dep => console.log(`  - ${dep}`));
+        if (dependencyStatus.length > 0) {
+          console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+          console.log(chalk.bold('│ Dependencies:                                                   │'));
+          dependencyStatus.forEach(dep => {
+            const icon = dep.satisfied ? '✅' : '❌';
+            const statusColor = dep.satisfied ? 'green' : 'red';
+            console.log(`│ ${icon} ${dep.id} (${chalk[statusColor](dep.status)})`);
+          });
         }
 
         if (task.testRequirements) {
-          console.log(chalk.bold('\nTest Requirements:'));
+          console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+          console.log(chalk.bold('│ Test Requirements:                                              │'));
           if (task.testRequirements.unit) {
-            console.log(`  Unit: ${task.testRequirements.unit.pattern} (${task.testRequirements.unit.required ? 'required' : 'optional'})`);
+            console.log(`│ ${chalk.gray('Unit:')} ${task.testRequirements.unit.pattern} ${task.testRequirements.unit.required ? chalk.red('(required)') : chalk.gray('(optional)')}`);
           }
           if (task.testRequirements.e2e) {
-            console.log(`  E2E: ${task.testRequirements.e2e.pattern} (${task.testRequirements.e2e.required ? 'required' : 'optional'})`);
+            console.log(`│ ${chalk.gray('E2E:')} ${task.testRequirements.e2e.pattern} ${task.testRequirements.e2e.required ? chalk.red('(required)') : chalk.gray('(optional)')}`);
           }
         }
+
+        if (context.recentActivity.length > 0) {
+          console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+          console.log(chalk.bold('│ 📊 RECENT ACTIVITY (from progress.log)                          │'));
+          console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+          context.recentActivity.forEach((line: string) => {
+            console.log(`│ ${chalk.gray(line.slice(0, 63))}`);
+          });
+        }
+
+        console.log(chalk.bold('└─────────────────────────────────────────────────────────────────┘'));
       }
     });
 

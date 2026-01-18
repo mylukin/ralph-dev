@@ -94,7 +94,7 @@ cd workspace
 - 生成 3-5 个结构化问题
 - 收集用户答案
 - 生成 PRD 文档
-- 保存到 `workspace/ai/prd.md`
+- 保存到 `.autopilot/prd.md`
 
 **参考**:
 - `docs/PSEUDOCODE.md` - Phase 1 算法
@@ -113,7 +113,7 @@ cd workspace
 - 显示任务计划给用户审批
 
 **参考**:
-- `workspace/ai/tasks/` - 任务文件示例
+- `.autopilot/tasks/` - 任务文件示例
 - `cli/README.md` - CLI tasks 命令
 
 ### 2.3 Phase 3: Implement (3-4小时)
@@ -389,7 +389,7 @@ npm install
 
 1. ✅ 运行 `/autopilot "Build a TODO app"` 不报错
 2. ✅ Phase 1 能问问题并生成 PRD
-3. ✅ Phase 2 能分解任务并保存到 workspace/ai/tasks/
+3. ✅ Phase 2 能分解任务并保存到 .autopilot/tasks/
 4. ✅ Phase 3 能循环执行任务
 5. ✅ Phase 4 能捕获错误并尝试修复
 6. ✅ Phase 5 能运行验证并创建 commit
