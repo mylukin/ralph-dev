@@ -24,6 +24,21 @@ Invoked by autopilot-orchestrator as Phase 2, after Phase 1 (Clarify) completes.
 
 ## Execution | 执行
 
+### Step 0: Initialize CLI (Automatic)
+
+**IMPORTANT:** This skill requires the Autopilot CLI. It will build automatically on first use.
+
+> **重要：**此技能需要 Autopilot CLI。首次使用时将自动构建。
+
+```bash
+# Bootstrap CLI - runs automatically, builds if needed
+source ${CLAUDE_PLUGIN_ROOT}/shared/bootstrap-cli.sh
+
+# Verify CLI is ready
+echo "✓ CLI initialized"
+echo ""
+```
+
 ### Step 1: Read PRD
 
 ```bash

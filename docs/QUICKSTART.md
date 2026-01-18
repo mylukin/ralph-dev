@@ -1,5 +1,9 @@
 # Autopilot Quick Start Guide | 快速开始指南
 
+**📖 Audience | 受众:** End users who want to USE Autopilot
+**⏱️ Time | 时间:** 30 minutes
+**📚 Related | 相关:** For contributors, see [GETTING_STARTED.md](GETTING_STARTED.md)
+
 This guide will get you up and running with Autopilot in 30 minutes.
 
 本指南将在30分钟内让您开始使用 Autopilot。

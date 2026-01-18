@@ -12,6 +12,18 @@
     "type": "git",
     "url": "https://github.com/mylukin/autopilot"
   },
+  "requirements": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "lifecycle": {
+    "install": {
+      "message": "🚀 Installing Autopilot plugin...\n\nℹ️  The CLI will build automatically when you first use autopilot.\n   If you want to build it now: cd ~/.claude/plugins/autopilot/cli && npm install && npm run build\n\n⏱️  First use build time: ~15-30 seconds (one-time)\n📦 Subsequent uses: Instant"
+    },
+    "postInstall": {
+      "message": "✅ Autopilot installed successfully!\n\n🚀 Quick start:\n  1. Optional: /detect-language (auto-detect project settings)\n  2. Run: /autopilot \"your requirement here\"\n\n📖 The CLI will build automatically on first use.\n   See: shared/README.md for details\n\n💡 Examples:\n   /autopilot \"Build a task management app with authentication\"\n   /autopilot \"Add user profile editing feature\"\n\n🔗 Documentation: https://github.com/mylukin/autopilot"
+    }
+  },
   "keywords": [
     "autopilot",
     "autonomous",

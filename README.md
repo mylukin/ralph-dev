@@ -56,21 +56,27 @@ Autopilot 是一个用于 Claude Code 的自主端到端开发系统，能够将
 ### Installation | 安装
 
 ```bash
-# Clone repository
-git clone https://github.com/mylukin/autopilot
-cd autopilot
+# Clone or symlink to Claude Code plugins directory
+git clone https://github.com/mylukin/autopilot ~/.claude/plugins/autopilot
 
-# Build CLI tool
-cd cli
-npm install && npm run build
-cd ..
-
-# Link to Claude Code plugins
+# Or if you want to develop locally:
 ln -s $(pwd) ~/.claude/plugins/autopilot
 
-# Verify installation
-ls -la ~/.claude/plugins/autopilot
+# That's it! No build step needed.
+# The CLI will build automatically when you first use autopilot.
 ```
+
+**✨ Auto-Bootstrap Feature:**
+- ✅ No manual build step required
+- ✅ CLI builds automatically on first use (~15-30 seconds one-time)
+- ✅ Subsequent uses are instant
+- ✅ Requires: Node.js >= 18.0.0, npm >= 9.0.0
+
+> **自动引导功能：**
+> - 无需手动构建步骤
+> - 首次使用时 CLI 自动构建（一次性15-30秒）
+> - 后续使用即时
+> - 需要：Node.js >= 18.0.0，npm >= 9.0.0
 
 ### Usage | 使用
 
@@ -280,14 +286,15 @@ Based on internal testing:
 
 1. **Multi-Language First** - Auto-detect project language and adapt verification
 2. **Hybrid Architecture** - Skills for decisions, CLI for fast operations (10x speedup)
-3. **Progressive Disclosure** - Load context only when needed
-4. **Fresh Context** - Spawn subagents to prevent context pollution
-5. **Evidence Before Claims** - Show test output, not assertions
-6. **Atomic Tasks** - Each task completable in <30 minutes
-7. **Self-Healing** - Use WebSearch to fix errors autonomously
-8. **Two-Stage Review** - Spec compliance before code quality
-9. **State Persistence** - Resume from any interruption
-10. **Scalable Storage** - Modular task files (agent-foreman pattern)
+3. **Auto-Bootstrap** - CLI builds automatically on first use, zero manual steps
+4. **Progressive Disclosure** - Load context only when needed
+5. **Fresh Context** - Spawn subagents to prevent context pollution
+6. **Evidence Before Claims** - Show test output, not assertions
+7. **Atomic Tasks** - Each task completable in <30 minutes
+8. **Self-Healing** - Use WebSearch to fix errors autonomously
+9. **Two-Stage Review** - Spec compliance before code quality
+10. **State Persistence** - Resume from any interruption
+11. **Scalable Storage** - Modular task files (agent-foreman pattern)
 
 ## Comparison | 对比
 
@@ -300,6 +307,31 @@ Based on internal testing:
 | Code review | Manual | Manual | ✅ 2-stage auto |
 | PR creation | Manual | Manual | ✅ Automatic |
 | Success rate | ~60% | ~70% | **~94%** |
+
+## CLI Auto-Bootstrap | CLI 自动引导
+
+Autopilot uses a centralized TypeScript CLI for high-performance operations (task management, state tracking, language detection). The CLI builds automatically when needed:
+
+> Autopilot 使用集中式 TypeScript CLI 进行高性能操作（任务管理、状态跟踪、语言检测）。CLI 在需要时自动构建：
+
+**How it works:**
+1. Skills automatically source `shared/bootstrap-cli.sh`
+2. Bootstrap script detects if CLI is built
+3. If not built: Automatically runs `npm install && npm run build` (~15-30s)
+4. If built: Validates and proceeds instantly
+
+**Benefits:**
+- ✅ **Zero manual setup** - No build step for users
+- ✅ **Performance** - TypeScript CLI is 8-10x faster than bash scripts
+- ✅ **Type safety** - Catch bugs at compile time
+- ✅ **Maintainability** - Single source of truth, DRY principle
+- ✅ **Graceful fallback** - Basic bash implementations if build fails
+
+**See:** `shared/README.md` for technical details
+
+> **优势：**用户无需手动设置，TypeScript CLI 比 bash 快 8-10 倍，类型安全，易于维护，构建失败时有优雅降级。
+
+---
 
 ## Inspired By | 灵感来源
 
