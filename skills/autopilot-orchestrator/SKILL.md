@@ -36,11 +36,13 @@ All state persists in `workspace/ai/`:
 ### Initialize
 
 ```bash
-# Detect project language and save configuration
+# Change to project root
 cd $PROJECT_ROOT
+
+# Detect project language and save configuration
 autopilot-cli detect --save
 
-# Initialize state using CLI
+# Initialize state to clarify phase
 autopilot-cli state set --phase clarify
 ```
 

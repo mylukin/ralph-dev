@@ -304,37 +304,90 @@ TEST REQUIREMENTS:
 - Required: {yes/no}
 - Min coverage: 80%
 
+## TDD IRON LAW (MANDATORY - NO EXCEPTIONS)
+
+```
+NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
+```
+
+**If you wrote code before the test → DELETE it completely. Start over.**
+
+This is non-negotiable. No "reference", no "adaptation", no "keeping it".
+DELETE means DELETE.
+
 WORKFLOW (TDD):
 
 1. RED Phase - Write Failing Tests:
    - Create test file: {test-pattern}
-   - Write tests for EACH acceptance criterion
-   - Run tests - they MUST fail
-   - Verify tests are testing the right thing
+   - Write ONE minimal test for FIRST acceptance criterion
+   - Run test → MUST show failure (not error, actual test failure)
+   - Verify failure message is expected (feature missing, not typo)
+   - **If test passes immediately → You're testing existing code, fix the test**
+   - **If test errors → Fix error first, then verify it fails correctly**
 
 2. GREEN Phase - Implement Minimum Code:
-   - Write ONLY code needed to pass tests
-   - No extra features
+   - Write SMALLEST amount of code to pass the ONE test
+   - No extra features beyond what the test requires
    - No premature optimization
-   - Run tests - they MUST pass
+   - No refactoring of other code
+   - Run tests → they MUST pass
+   - **If test still fails → Fix code, NOT test**
 
-3. REFACTOR Phase - Clean Code:
+3. REFACTOR Phase - Clean Code (ONLY after GREEN):
    - Improve naming, structure
    - Remove duplication
    - Apply design patterns if appropriate
-   - Run tests after EACH change - must stay passing
+   - Run tests after EACH change → must stay passing
+   - **If tests fail during refactor → Revert change immediately**
 
-4. VERIFY - Final Check:
+4. REPEAT - Next Test:
+   - Go back to RED for next acceptance criterion
+   - One test at a time, one feature at a time
+   - Complete RED-GREEN-REFACTOR cycle for each
+
+5. VERIFY - Final Check:
    - All tests pass ✓
    - Coverage >80% ✓
    - All acceptance criteria satisfied ✓
    - No linting errors ✓
+   - Output pristine (no warnings, no console.log) ✓
+
+## VERIFICATION CHECKLIST (MANDATORY)
+
+Before marking task complete, verify EVERY item:
+
+- [ ] Every new function/method has a test
+- [ ] Watched each test fail BEFORE implementing (saw RED)
+- [ ] Each test failed for expected reason (feature missing, not typo)
+- [ ] Wrote minimal code to pass each test (no over-engineering)
+- [ ] All tests pass (run full test suite)
+- [ ] No test was written after the code (all tests-first)
+- [ ] Tests use real code, not mocks (unless unavoidable)
+- [ ] Edge cases and errors covered
+- [ ] No production code exists without a corresponding test
+
+**Cannot check all boxes? → Start over with TDD. No exceptions.**
+
+## RED FLAGS - STOP IMMEDIATELY
+
+If you catch yourself:
+- Writing code before test
+- Test passes on first run (didn't see it fail)
+- Adding multiple tests before any implementation
+- Implementing features not required by current test
+- "I'll add tests after to verify it works"
+- "This is too simple to test"
+- "I already manually tested it"
+- Keeping code written before tests "as reference"
+
+**ALL of these mean: DELETE CODE. Start over with TDD.**
 
 CONSTRAINTS:
 - Only implement what's specified in acceptance criteria
-- Follow TDD strictly (tests first)
+- Follow TDD Iron Law strictly (tests ALWAYS first, no exceptions)
 - Use project's language/framework conventions
 - Keep code clean and simple
+- One test → One minimal implementation → Refactor → Repeat
 
 OUTPUT:
 When done, report:

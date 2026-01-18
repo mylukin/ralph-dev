@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import * as path from 'path';
 import chalk from 'chalk';
-import { TaskParser } from '../core/task-parser';
+import { TaskParser, Task } from '../core/task-parser';
 import { TaskWriter } from '../core/task-writer';
 import { IndexManager } from '../core/index-manager';
 
@@ -10,6 +10,73 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
   const indexManager = new IndexManager(tasksDir);
 
   const tasks = program.command('tasks').description('Manage tasks');
+
+  // Initialize tasks system
+  tasks
+    .command('init')
+    .description('Initialize tasks directory and index')
+    .option('--project-goal <goal>', 'Project goal description')
+    .option('--language <language>', 'Programming language')
+    .option('--framework <framework>', 'Framework name')
+    .action((options) => {
+      const index = indexManager.readIndex();
+
+      if (options.projectGoal) {
+        index.metadata.projectGoal = options.projectGoal;
+      }
+
+      if (options.language || options.framework) {
+        index.metadata.languageConfig = {
+          language: options.language || 'typescript',
+          framework: options.framework || '',
+        };
+      }
+
+      indexManager.writeIndex(index);
+      console.log(chalk.green('✅ Tasks system initialized'));
+      console.log(chalk.gray(`   Location: ${tasksDir}/index.json`));
+    });
+
+  // Create a new task
+  tasks
+    .command('create')
+    .description('Create a new task')
+    .requiredOption('--id <id>', 'Task ID (e.g., auth.signup.ui)')
+    .requiredOption('--module <module>', 'Module name (e.g., auth)')
+    .option('--priority <priority>', 'Priority (default: 1)', '1')
+    .option('--estimated-minutes <minutes>', 'Estimated minutes (default: 30)', '30')
+    .requiredOption('--description <desc>', 'Task description')
+    .option('--criteria <criteria...>', 'Acceptance criteria (can specify multiple)')
+    .option('--dependencies <deps...>', 'Task dependencies')
+    .option('--test-pattern <pattern>', 'Test file pattern')
+    .action((options) => {
+      const task: Task = {
+        id: options.id,
+        module: options.module,
+        priority: parseInt(options.priority),
+        status: 'pending',
+        estimatedMinutes: parseInt(options.estimatedMinutes),
+        description: options.description,
+        acceptanceCriteria: options.criteria || [],
+        dependencies: options.dependencies || [],
+        testRequirements: options.testPattern ? {
+          unit: {
+            required: true,
+            pattern: options.testPattern,
+          },
+        } : undefined,
+        notes: '',
+      };
+
+      const filePath = TaskWriter.writeTaskFile(tasksDir, task);
+      indexManager.upsertTask(task, filePath);
+
+      console.log(chalk.green(`✅ Task ${options.id} created`));
+      console.log(chalk.gray(`   Module: ${options.module}`));
+      console.log(chalk.gray(`   Priority: ${options.priority}`));
+      console.log(chalk.gray(`   Estimated: ${options.estimatedMinutes} min`));
+      console.log(chalk.gray(`   Location: ${filePath}`));
+    });
 
   // List all tasks
   tasks

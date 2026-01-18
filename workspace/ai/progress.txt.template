@@ -1,0 +1,26 @@
+# Autopilot Progress
+
+Session: {DATE}
+Goal: {PROJECT_GOAL}
+
+## Tasks
+DONE: setup.scaffold (3m47s)
+DONE: auth.signup.ui (4m32s)
+HEAL: auth.signup.api (6m12s) - bcrypt dependency
+PROG: auth.login.ui
+TODO: auth.login.api
+TODO: ... (30 more)
+
+## Stats
+Total: 35 | Done: 2 | Failed: 0 | Healed: 1 | Progress: 6%
+
+## Key Learnings
+- Next.js 14 needs "use client" for client components
+- bcrypt auto-installs successfully
+- Zod schemas reusable for API validation
+
+## Next
+Run: autopilot-cli tasks next
+
+---
+For details, see git log.

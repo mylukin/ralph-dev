@@ -49,74 +49,125 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🔍 Running Quality Gates..."
 echo ""
+echo "## VERIFICATION PRINCIPLE: Evidence Before Claims"
+echo ""
+echo "Every quality gate shows FULL COMMAND OUTPUT."
+echo "No assertions without evidence in same message."
+echo ""
 
 # Quality Gate 1: Type Checking
-echo "1️⃣  Type Checking..."
-TYPE_CHECK_RESULT=$(run_typecheck)
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "1️⃣  Type Checking"
+echo ""
+echo "Running: npx tsc --noEmit"
+echo ""
+
+TYPE_CHECK_RESULT=$(run_typecheck 2>&1)
 TYPE_CHECK_STATUS=$?
 
+echo "$TYPE_CHECK_RESULT"
+echo ""
+echo "Exit code: $TYPE_CHECK_STATUS"
+echo ""
+
 if [ $TYPE_CHECK_STATUS -eq 0 ]; then
-  echo "   ✅ No type errors"
+  echo "✅ VERIFIED: No type errors (see output above)"
 else
-  echo "   ❌ Type errors found"
-  echo "$TYPE_CHECK_RESULT"
+  echo "❌ VERIFIED: Type errors found (see output above)"
   GATE_FAILED=true
 fi
 echo ""
 
 # Quality Gate 2: Linting
-echo "2️⃣  Linting..."
-LINT_RESULT=$(run_lint)
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "2️⃣  Linting"
+echo ""
+echo "Running: npm run lint"
+echo ""
+
+LINT_RESULT=$(run_lint 2>&1)
 LINT_STATUS=$?
 
+echo "$LINT_RESULT"
+echo ""
+echo "Exit code: $LINT_STATUS"
+echo ""
+
 if [ $LINT_STATUS -eq 0 ]; then
-  echo "   ✅ No linting errors"
+  echo "✅ VERIFIED: No linting errors (see output above)"
 else
-  echo "   ❌ Linting errors found"
-  echo "$LINT_RESULT"
+  echo "❌ VERIFIED: Linting errors found (see output above)"
   GATE_FAILED=true
 fi
 echo ""
 
 # Quality Gate 3: Tests
-echo "3️⃣  Running All Tests..."
-TEST_RESULT=$(run_all_tests)
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "3️⃣  Running All Tests"
+echo ""
+echo "Running: npm test"
+echo ""
+
+TEST_RESULT=$(run_all_tests 2>&1)
 TEST_STATUS=$?
 
+echo "$TEST_RESULT"
+echo ""
+echo "Exit code: $TEST_STATUS"
+echo ""
+
 if [ $TEST_STATUS -eq 0 ]; then
-  echo "   ✅ All tests passed"
-  # Extract test stats
+  # Extract test stats from actual output
   TEST_COUNT=$(extract_test_count "$TEST_RESULT")
-  echo "   Tests run: $TEST_COUNT"
+  echo "✅ VERIFIED: All tests passed (see full output above)"
+  echo "   Test count: $TEST_COUNT"
 else
-  echo "   ❌ Tests failed"
-  echo "$TEST_RESULT"
+  echo "❌ VERIFIED: Tests failed (see failures above)"
   GATE_FAILED=true
 fi
 echo ""
 
 # Quality Gate 4: Build
-echo "4️⃣  Building Project..."
-BUILD_RESULT=$(run_build)
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "4️⃣  Building Project"
+echo ""
+echo "Running: npm run build"
+echo ""
+
+BUILD_RESULT=$(run_build 2>&1)
 BUILD_STATUS=$?
 
+echo "$BUILD_RESULT"
+echo ""
+echo "Exit code: $BUILD_STATUS"
+echo ""
+
 if [ $BUILD_STATUS -eq 0 ]; then
-  echo "   ✅ Build successful"
+  echo "✅ VERIFIED: Build successful (see output above)"
 else
-  echo "   ❌ Build failed"
-  echo "$BUILD_RESULT"
+  echo "❌ VERIFIED: Build failed (see errors above)"
   GATE_FAILED=true
 fi
 echo ""
 
 # Check if any gate failed
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [ "$GATE_FAILED" = true ]; then
   echo "❌ Quality gates failed. Cannot proceed to delivery."
+  echo ""
+  echo "Review the FULL OUTPUT above for each failed gate."
+  echo "Fix issues and re-run Phase 5."
   echo ""
   return 1
 fi
 
 echo "✅ All quality gates passed!"
+echo ""
+echo "Evidence verified above for all 4 gates:"
+echo "  • Type checking: Full tsc output shown ✓"
+echo "  • Linting: Full lint output shown ✓"
+echo "  • Tests: Full test output shown ✓"
+echo "  • Build: Full build output shown ✓"
 echo ""
 ```
 
@@ -167,7 +218,7 @@ echo "✅ Two-stage review complete!"
 echo ""
 ```
 
-### Step 4: Create Git Commit
+### Step 4: Create Git Commit with Detailed Message
 
 ```bash
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -177,8 +228,8 @@ echo ""
 # Get list of modified/new files
 git status --short
 
-# Generate commit message
-COMMIT_MSG=$(generate_commit_message "$COMPLETED_TASKS")
+# Generate detailed commit message with task info
+COMMIT_MSG=$(generate_detailed_commit_message "$COMPLETED_TASKS")
 
 echo "Commit message:"
 echo "───────────────"
@@ -189,7 +240,7 @@ echo ""
 # Stage all changes
 git add .
 
-# Create commit with co-author
+# Create commit with detailed message and co-author
 git commit -m "$(cat <<EOF
 $COMMIT_MSG
 
@@ -202,6 +253,10 @@ COMMIT_STATUS=$?
 if [ $COMMIT_STATUS -eq 0 ]; then
   COMMIT_SHA=$(git rev-parse --short HEAD)
   echo "✅ Commit created: $COMMIT_SHA"
+  echo ""
+
+  # Update minimal progress file
+  update_progress_txt "$COMPLETED_TASKS" "$COMMIT_SHA"
 else
   echo "❌ Commit failed"
   return 1
@@ -504,37 +559,82 @@ perform_code_quality_check() {
 }
 ```
 
-### Generate Commit Message
+### Generate Detailed Commit Message
 
 ```bash
-generate_commit_message() {
+generate_detailed_commit_message() {
   local COMPLETED_TASKS=$1
 
-  # Group tasks by module
-  MODULES=$(echo "$COMPLETED_TASKS" | jq -r '.[].module' | sort -u)
-
-  # Create summary line
+  # Create conventional commit format with details
   TASK_COUNT=$(echo "$COMPLETED_TASKS" | jq 'length')
 
   if [ "$TASK_COUNT" -eq 1 ]; then
-    # Single task - use task description
-    DESC=$(echo "$COMPLETED_TASKS" | jq -r '.[0].description')
-    echo "feat: $DESC"
+    # Single task - detailed single commit
+    local TASK=$(echo "$COMPLETED_TASKS" | jq -r '.[0]')
+    local ID=$(echo "$TASK" | jq -r '.id')
+    local MODULE=$(echo "$TASK" | jq -r '.module')
+    local DESC=$(echo "$TASK" | jq -r '.description')
+    local DURATION=$(echo "$TASK" | jq -r '.duration // "unknown"')
+    local TEST_COUNT=$(echo "$TASK" | jq -r '.testResults.unit.passed // 0')
+    local COVERAGE=$(echo "$TASK" | jq -r '.testResults.unit.coverage // 0')
+
+    cat <<EOF
+feat($MODULE): $DESC
+
+Task: $ID
+Duration: $DURATION
+Tests: $TEST_COUNT passed, ${COVERAGE}% coverage
+
+Acceptance criteria:
+$(echo "$TASK" | jq -r '.acceptanceCriteria[]' | sed 's/^/- /')
+
+Files:
+$(git diff --cached --name-only | sed 's/^/- /')
+EOF
   else
-    # Multiple tasks - generic summary
-    echo "feat: implement $TASK_COUNT features across $(echo "$MODULES" | wc -l) modules"
+    # Multiple tasks - batch commit
+    MODULES=$(echo "$COMPLETED_TASKS" | jq -r '.[].module' | sort -u | head -1)
+
+    cat <<EOF
+feat($MODULES): implement $TASK_COUNT tasks
+
+Tasks completed:
+$(echo "$COMPLETED_TASKS" | jq -r '.[] | "- \(.id) (\(.duration // "N/A")): \(.description)"')
+
+All tasks:
+- Acceptance criteria satisfied ✓
+- Tests passing ✓
+- Build successful ✓
+EOF
   fi
+}
 
-  echo ""
-  echo "Implemented tasks:"
+### Update Progress File (Minimal)
 
-  # List all tasks
-  echo "$COMPLETED_TASKS" | jq -r '.[] | "- \(.id): \(.description)"'
+```bash
+update_progress_txt() {
+  local COMPLETED_TASKS=$1
+  local COMMIT_SHA=$2
 
-  echo ""
-  echo "All acceptance criteria satisfied."
-  echo "Tests: passing"
-  echo "Build: successful"
+  PROGRESS_FILE="workspace/ai/progress.txt"
+
+  # Append completed tasks to progress file
+  echo "$COMPLETED_TASKS" | jq -r '.[] | "\(.status | ascii_upcase): \(.id) (\(.duration // "N/A")) - commit \($commit)"' \
+    --arg commit "$COMMIT_SHA" >> "$PROGRESS_FILE"
+
+  # Update stats line
+  TOTAL=$(autopilot-cli tasks list --json | jq 'length')
+  DONE=$(autopilot-cli tasks list --status completed --json | jq 'length')
+  FAILED=$(autopilot-cli tasks list --status failed --json | jq 'length')
+  PROGRESS=$((DONE * 100 / TOTAL))
+
+  # Update stats (replace last Stats: line)
+  sed -i.bak "/^## Stats/,/^$/c\\
+## Stats\\
+Total: $TOTAL | Done: $DONE | Failed: $FAILED | Progress: ${PROGRESS}%\\
+" "$PROGRESS_FILE"
+
+  echo "✓ Progress file updated: $PROGRESS_FILE"
 }
 ```
 

@@ -1,0 +1,113 @@
+# Project Requirements Document (PRD)
+
+## Project Overview
+
+**Goal:** {Brief description of what we're building}
+
+**Tech Stack:**
+- Language: TypeScript
+- Frontend: Next.js 14
+- Backend: Next.js API Routes
+- Database: PostgreSQL
+- Authentication: NextAuth.js
+- Deployment: Vercel
+
+## User Stories
+
+### Epic: Setup
+
+#### 1. ✅ setup.scaffold (P1, 15min)
+Initialize project structure with Next.js and TypeScript.
+
+**Acceptance Criteria:**
+- [ ] Next.js project created with TypeScript
+- [ ] ESLint and Prettier configured
+- [ ] Git initialized
+- [ ] README updated with project info
+
+**Status:** ✅ DONE (3m 47s)
+**Notes:** Used create-next-app template. All dependencies installed.
+
+---
+
+#### 2. ⏳ setup.dependencies (P2, 10min)
+Install and configure core dependencies.
+
+**Acceptance Criteria:**
+- [ ] Database client installed (Prisma)
+- [ ] Authentication library installed (NextAuth)
+- [ ] Testing framework installed (Vitest)
+- [ ] All dependencies in package.json
+
+**Status:** 🔄 IN PROGRESS
+**Notes:**
+
+---
+
+### Epic: Authentication
+
+#### 3. 📋 auth.signup.ui (P3, 20min)
+Create signup form component.
+
+**Acceptance Criteria:**
+- [ ] Component exists at src/components/SignupForm.tsx
+- [ ] Form has email, password, confirmPassword fields
+- [ ] Form validates email format
+- [ ] Form validates password strength
+- [ ] Submit button disabled when form invalid
+- [ ] Unit tests exist and pass (coverage >80%)
+
+**Status:** 📋 PENDING
+**Notes:**
+
+---
+
+#### 4. 📋 auth.signup.api (P4, 25min)
+Create signup API endpoint.
+
+**Acceptance Criteria:**
+- [ ] API endpoint exists at /api/auth/signup
+- [ ] Validates request body
+- [ ] Hashes password with bcrypt
+- [ ] Stores user in database
+- [ ] Returns appropriate error codes
+- [ ] Unit tests exist and pass
+
+**Status:** 📋 PENDING
+**Notes:**
+
+---
+
+## Task Status Legend
+
+- ✅ **DONE** - Completed and passing
+- 🔄 **IN PROGRESS** - Currently being worked on
+- ⚠️ **FAILED** - Needs manual intervention
+- 🔧 **HEALED** - Auto-fixed after error
+- 📋 **PENDING** - Not started
+
+## Progress Summary
+
+**Total Stories:** 35
+**Completed:** 1 ✅
+**In Progress:** 1 🔄
+**Failed:** 0 ⚠️
+**Pending:** 33 📋
+
+**Progress:** 3% (1/35)
+**Estimated Time Remaining:** ~8.5 hours
+
+## Key Learnings
+
+1. **Next.js 14 requires "use client"** - Client components need explicit directive
+2. **bcrypt auto-install** - Missing dependencies are auto-healed successfully
+3. *(Add learnings as we go)*
+
+---
+
+## Notes
+
+- Each story should complete in one context window
+- Follow TDD strictly: tests first, then implementation
+- Auto-healing handles common errors (dependencies, types)
+- Failed tasks require manual configuration (OAuth credentials, etc.)

@@ -71,88 +71,61 @@ For each user story or requirement, create 1-3 atomic tasks.
 
 ### Step 4: Create Task Files Using CLI
 
-For each task, create a markdown file in `workspace/ai/tasks/{module}/{task}.md`:
+For each task, create task files using the autopilot-cli:
 
 ```bash
-# Initialize tasks directory
-mkdir -p workspace/ai/tasks
+# Initialize tasks directory and index
+autopilot-cli tasks init \
+  --project-goal "$(extract_goal_from_prd)" \
+  --language "typescript" \
+  --framework "Next.js"
 
-# Create index.json
-cat > workspace/ai/tasks/index.json <<'EOF'
-{
-  "version": "1.0.0",
-  "updatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "metadata": {
-    "projectGoal": "{extracted from PRD}",
-    "languageConfig": {
-      "language": "{from PRD}",
-      "framework": "{from PRD}",
-      "verifyCommands": [
-        "{language-specific commands}"
-      ]
-    }
-  },
-  "tasks": {}
-}
-EOF
-
-# For each task, create markdown file
+# Create each task using CLI
 # Example for auth.signup.ui:
-mkdir -p workspace/ai/tasks/auth
 
-cat > workspace/ai/tasks/auth/signup.ui.md <<'EOF'
----
-id: auth.signup.ui
-module: auth
-priority: 1
-status: pending
-estimatedMinutes: 20
-dependencies: []
-testRequirements:
-  unit:
-    required: true
-    pattern: "tests/auth/SignupForm.test.*"
----
-# Create signup form component
+autopilot-cli tasks create \
+  --id "auth.signup.ui" \
+  --module "auth" \
+  --priority 1 \
+  --estimated-minutes 20 \
+  --description "Create signup form component" \
+  --criteria "Component exists at src/components/SignupForm.tsx" \
+  --criteria "Form has email, password, confirmPassword fields" \
+  --criteria "Form validates email format" \
+  --criteria "Form validates password strength (min 8 chars)" \
+  --criteria "Form validates passwords match" \
+  --criteria "Submit button disabled when form invalid" \
+  --criteria "Component properly typed with TypeScript" \
+  --criteria "Unit tests exist and pass (coverage >80%)" \
+  --test-pattern "tests/auth/SignupForm.test.*"
 
-## Description
+# CLI will:
+# 1. Create workspace/ai/tasks/auth/signup.ui.md with proper frontmatter
+# 2. Update workspace/ai/tasks/index.json automatically
+# 3. Show confirmation with file location
 
-React/Vue component with email, password, and confirm password fields.
-
-## Acceptance Criteria
-
-1. Component exists at src/components/SignupForm.{tsx|vue}
-2. Form has email, password, confirmPassword fields
-3. Form validates email format
-4. Form validates password strength (min 8 chars, uppercase, lowercase, number)
-5. Form validates passwords match
-6. Submit button disabled when form invalid
-7. Component properly typed with TypeScript
-8. Unit tests exist and pass (coverage >80%)
-
-## Notes
-
-Use form library (React Hook Form, Vuelidate, etc.) for validation.
-Include proper ARIA labels for accessibility.
-EOF
-
-# Update index.json to include this task
-# (In real implementation, use jq or the CLI)
+# For each subsequent task, repeat the create command with different parameters
 ```
 
-**Actual CLI Usage** (once CLI has create command - for now create files manually):
+**Output:**
+```
+✅ Task auth.signup.ui created
+   Module: auth
+   Priority: 1
+   Estimated: 20 min
+   Location: workspace/ai/tasks/auth/signup.ui.md
+```
+
+**Helper function to extract goal from PRD:**
 
 ```bash
-# Future CLI command (not yet implemented):
-# autopilot-cli tasks create \
-#   --id "auth.signup.ui" \
-#   --module "auth" \
-#   --priority 1 \
-#   --estimated-minutes 20 \
-#   --description "Create signup form component" \
-#   --criteria "Component exists at src/components/SignupForm.tsx" \
-#   --criteria "Form validates email format" \
-#   ...
+extract_goal_from_prd() {
+  # Extract first paragraph under "## Project Overview"
+  sed -n '/## Project Overview/,/^##/p' workspace/ai/prd.md | \
+    sed '1d;$d' | \
+    tr '\n' ' ' | \
+    sed 's/  */ /g'
+}
 ```
 
 ### Step 5: Generate Complete Task List

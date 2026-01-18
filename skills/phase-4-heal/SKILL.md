@@ -1,21 +1,31 @@
 ---
 name: phase-4-heal
-description: Auto-healing system using WebSearch for error recovery with 3-retry limit
+description: Systematic error recovery using root cause investigation before fixes
 allowed-tools: [Read, Write, Bash, WebSearch, Grep, Glob]
 user-invocable: false
 ---
 
-# Phase 4: Auto-Heal
+# Phase 4: Systematic Healing
 
 ## Overview | 概述
 
-Automatically heal implementation errors using WebSearch to find solutions, apply fixes, and verify results. Maximum 3 retry attempts per error.
+Systematically investigate and fix implementation errors using root cause analysis. NO FIXES WITHOUT INVESTIGATION FIRST.
 
-使用 WebSearch 自动修复实现错误，查找解决方案、应用修复并验证结果。每个错误最多重试 3 次。
+使用根本原因分析系统地调查和修复实现错误。未经调查不得进行修复。
 
 ## When to Use | 何时使用
 
-Invoked by phase-3-implement when a task implementation fails, or manually when errors need automatic recovery.
+Invoked by phase-3-implement when a task implementation fails.
+
+## The Iron Law | 铁律
+
+```
+NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST
+```
+
+If you haven't completed Phase 1 (Root Cause Investigation), you CANNOT propose fixes.
+
+> 如果你没有完成第 1 阶段（根本原因调查），你不能提出修复方案。
 
 ## Input | 输入
 
@@ -23,168 +33,386 @@ Invoked by phase-3-implement when a task implementation fails, or manually when 
 - Error message: `{error_msg}`
 - Error context: Stack trace, test output, or build logs
 
-## Execution | 执行
+## The Four Phases | 四个阶段
 
-### Step 1: Capture Error Context
+**MANDATORY**: Must complete each phase before proceeding to next.
+
+> **强制性**：必须完成每个阶段才能进入下一个阶段。
+
+### Phase 1: Root Cause Investigation (MANDATORY)
 
 ```bash
+echo "🔍 Phase 1: Root Cause Investigation"
+echo ""
+
 # Get task details
 TASK_JSON=$(autopilot-cli tasks get "$TASK_ID" --json)
 TASK_DESC=$(echo "$TASK_JSON" | jq -r '.description')
 
-# Extract error details
-echo "🔍 Analyzing error..."
 echo "Task: $TASK_ID"
+echo "Description: $TASK_DESC"
+echo ""
 echo "Error: $ERROR_MSG"
 echo ""
 
-# Determine error type
-ERROR_TYPE=$(classify_error "$ERROR_MSG")
-echo "Error type: $ERROR_TYPE"
-```
-
-### Step 2: Search for Solutions
-
-```bash
-# Construct search query based on error type
-SEARCH_QUERY=$(build_search_query "$ERROR_TYPE" "$ERROR_MSG" "$TASK_JSON")
-
-echo "🔎 Searching for solutions..."
-echo "Query: $SEARCH_QUERY"
+# STEP 1: Read Error Message COMPLETELY
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "STEP 1: Read Error Message Completely"
 echo ""
 
-# Use WebSearch tool to find solutions
-# In actual implementation, use:
-# Use WebSearch tool with:
-#   query: "$SEARCH_QUERY"
-#
-# Expected result: Top 3-5 relevant solutions with:
-# - Error explanation
-# - Solution steps
-# - Code examples
-# - Common pitfalls
+# Display full error with stack trace
+echo "$ERROR_FULL_OUTPUT"
+echo ""
 
-# For now, simulate search results
-SEARCH_RESULTS='[
-  {
-    "title": "How to fix {error}",
-    "url": "https://stackoverflow.com/...",
-    "solution": "Step 1...\nStep 2...",
-    "code": "example code"
-  }
-]'
+# Extract key information
+echo "Line number: $(extract_line_number "$ERROR_MSG")"
+echo "File: $(extract_file_path "$ERROR_MSG")"
+echo "Error code: $(extract_error_code "$ERROR_MSG")"
+echo ""
+
+# STEP 2: Reproduce Consistently
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "STEP 2: Reproduce Consistently"
+echo ""
+
+# Determine test command from task
+TEST_PATTERN=$(echo "$TASK_JSON" | jq -r '.testRequirements.unit.pattern // "**/*.test.*"')
+echo "Running: npm test -- $TEST_PATTERN"
+echo ""
+
+REPRO_OUTPUT=$(npm test -- "$TEST_PATTERN" 2>&1)
+REPRO_STATUS=$?
+
+echo "$REPRO_OUTPUT"
+echo ""
+
+if [ $REPRO_STATUS -ne 0 ]; then
+  echo "✓ Error reproduced consistently"
+else
+  echo "⚠️  Error not reproducible - may be intermittent"
+  echo "Gathering more data before proceeding..."
+fi
+echo ""
+
+# STEP 3: Check Recent Changes
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "STEP 3: Check Recent Changes"
+echo ""
+
+echo "Recent commits:"
+git log --oneline -5
+echo ""
+
+echo "Files changed in last commit:"
+git diff --name-only HEAD~1
+echo ""
+
+echo "Recent dependency changes:"
+git diff HEAD~1 package.json 2>/dev/null || echo "No package.json changes"
+echo ""
+
+# STEP 4: Trace Data Flow (if applicable)
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "STEP 4: Trace Data Flow"
+echo ""
+
+# Analyze error location
+ERROR_FILE=$(extract_file_path "$ERROR_MSG")
+ERROR_LINE=$(extract_line_number "$ERROR_MSG")
+
+if [ -n "$ERROR_FILE" ] && [ -n "$ERROR_LINE" ]; then
+  echo "Error location: $ERROR_FILE:$ERROR_LINE"
+  echo ""
+  echo "Code context:"
+  sed -n "$((ERROR_LINE - 5)),$((ERROR_LINE + 5))p" "$ERROR_FILE" | cat -n
+  echo ""
+
+  # Trace backward
+  echo "Tracing backward from error:"
+  echo "1. What called this function?"
+  echo "2. Where does the bad value originate?"
+  echo "3. What are the upstream dependencies?"
+  echo ""
+fi
+
+echo "✓ Phase 1 Complete: Root cause investigation finished"
+echo ""
 ```
 
-### Step 3: Apply Fix (with retry logic)
+### Phase 2: Pattern Analysis
 
 ```bash
-MAX_RETRIES=3
-RETRY_COUNT=0
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔎 Phase 2: Pattern Analysis"
+echo ""
 
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+# STEP 1: Find Working Examples
+echo "STEP 1: Finding working examples in codebase..."
+echo ""
+
+# Search for similar working patterns
+SEARCH_PATTERN=$(extract_relevant_pattern "$ERROR_MSG")
+echo "Searching for: $SEARCH_PATTERN"
+echo ""
+
+WORKING_EXAMPLES=$(grep -r "$SEARCH_PATTERN" src/ --include="*.ts" --include="*.tsx" -l 2>/dev/null || echo "No examples found")
+echo "Working examples found:"
+echo "$WORKING_EXAMPLES"
+echo ""
+
+# STEP 2: Compare Working vs Broken
+if [ -n "$WORKING_EXAMPLES" ]; then
+  echo "STEP 2: Comparing working vs broken code..."
+  echo ""
+
+  FIRST_EXAMPLE=$(echo "$WORKING_EXAMPLES" | head -1)
+  echo "Working example: $FIRST_EXAMPLE"
+  echo "Broken code: $ERROR_FILE"
+  echo ""
+
+  echo "Key differences:"
+  diff -u "$FIRST_EXAMPLE" "$ERROR_FILE" | head -20
+  echo ""
+fi
+
+# STEP 3: Check Dependencies
+echo "STEP 3: Checking dependencies..."
+echo ""
+
+# Extract module name from error
+MODULE_NAME=$(echo "$ERROR_MSG" | grep -oP "Module '.*?'" | sed "s/Module '//;s/'//")
+
+if [ -n "$MODULE_NAME" ]; then
+  echo "Missing module: $MODULE_NAME"
+  echo "Checking if installed:"
+  npm list "$MODULE_NAME" 2>&1 || echo "Not installed"
+  echo ""
+fi
+
+echo "✓ Phase 2 Complete: Pattern analysis finished"
+echo ""
+```
+
+### Phase 3: Hypothesis and Testing
+
+```bash
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "💡 Phase 3: Hypothesis and Testing"
+echo ""
+
+# STEP 1: Form Hypothesis
+echo "STEP 1: Forming hypothesis based on investigation..."
+echo ""
+
+# Classify error type
+ERROR_TYPE=$(classify_error "$ERROR_MSG")
+echo "Error type: $ERROR_TYPE"
+echo ""
+
+case "$ERROR_TYPE" in
+  missing_dependency)
+    HYPOTHESIS="Module '$MODULE_NAME' is not installed or not listed in dependencies"
+    FIX_TYPE="dependency"
+    ;;
+  type_error)
+    HYPOTHESIS="Type mismatch or incorrect type annotation"
+    FIX_TYPE="code"
+    ;;
+  undefined_reference)
+    HYPOTHESIS="Variable or import not defined"
+    FIX_TYPE="code"
+    ;;
+  test_failure)
+    HYPOTHESIS="Implementation doesn't match expected behavior"
+    FIX_TYPE="implementation"
+    ;;
+  build_error)
+    HYPOTHESIS="Configuration or compilation issue"
+    FIX_TYPE="config"
+    ;;
+  *)
+    HYPOTHESIS="Unknown error type - need more investigation"
+    FIX_TYPE="unknown"
+    ;;
+esac
+
+echo "HYPOTHESIS: $HYPOTHESIS"
+echo "Fix type: $FIX_TYPE"
+echo ""
+
+# STEP 2: Use WebSearch to Confirm Hypothesis
+echo "STEP 2: Using WebSearch to confirm hypothesis..."
+echo ""
+
+# Build search query
+SEARCH_QUERY=$(build_search_query "$ERROR_TYPE" "$ERROR_MSG" "$TASK_JSON")
+echo "Search query: $SEARCH_QUERY"
+echo ""
+
+# Use WebSearch tool
+# In actual execution:
+# Use WebSearch with query: "$SEARCH_QUERY"
+
+# Simulated result:
+SEARCH_RESULTS='[
+  {
+    "title": "Solution for this error",
+    "url": "https://stackoverflow.com/...",
+    "solution": "Install the package or fix the code"
+  }
+]'
+
+echo "Search results:"
+echo "$SEARCH_RESULTS" | jq -r '.[].title'
+echo ""
+
+echo "✓ Phase 3 Complete: Hypothesis formed and validated"
+echo ""
+```
+
+### Phase 4: Implementation with Verification
+
+```bash
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔧 Phase 4: Implementation"
+echo ""
+
+MAX_ATTEMPTS=3
+ATTEMPT=1
+
+while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "🔧 Healing Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES"
+  echo "Healing Attempt $ATTEMPT/$MAX_ATTEMPTS"
   echo ""
 
-  # Select best solution from search results
-  SOLUTION=$(select_best_solution "$SEARCH_RESULTS" "$ERROR_TYPE")
-
-  # Extract fix steps
-  FIX_STEPS=$(echo "$SOLUTION" | jq -r '.solution')
-
-  echo "Applying fix:"
-  echo "$FIX_STEPS"
+  # STEP 1: Create Failing Test (if not exists)
+  echo "STEP 1: Verify failing test exists..."
   echo ""
 
-  # Apply the fix
-  apply_fix "$SOLUTION" "$TASK_JSON"
-  FIX_STATUS=$?
+  # Run tests to confirm failure
+  npm test -- "$TEST_PATTERN" 2>&1
+  TEST_STATUS=$?
 
-  if [ $FIX_STATUS -ne 0 ]; then
-    echo "⚠️  Fix application failed"
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-    continue
+  if [ $TEST_STATUS -eq 0 ]; then
+    echo "⚠️  Tests passing - error may already be fixed"
+    return 0
   fi
-
-  # Verify the fix
-  echo "✓ Fix applied"
   echo ""
-  echo "🧪 Verifying fix..."
 
-  # Re-run task verification
-  VERIFY_RESULT=$(verify_task "$TASK_ID")
+  # STEP 2: Implement Single Fix
+  echo "STEP 2: Implementing fix for $FIX_TYPE error..."
+  echo ""
+
+  case "$FIX_TYPE" in
+    dependency)
+      # Install missing dependency
+      echo "Installing: $MODULE_NAME"
+      npm install "$MODULE_NAME" 2>&1
+      FIX_STATUS=$?
+      ;;
+
+    code)
+      # Apply code fix based on search results
+      echo "Applying code fix..."
+      # Use Edit tool to fix the code
+      # (Would need actual implementation)
+      FIX_STATUS=0
+      ;;
+
+    implementation)
+      # Fix implementation logic
+      echo "Fixing implementation logic..."
+      # Use Edit tool
+      FIX_STATUS=0
+      ;;
+
+    config)
+      # Fix configuration
+      echo "Updating configuration..."
+      # Use Edit tool
+      FIX_STATUS=0
+      ;;
+
+    *)
+      echo "Unknown fix type, cannot proceed"
+      FIX_STATUS=1
+      ;;
+  esac
+
+  echo ""
+
+  # STEP 3: Verify Fix
+  echo "STEP 3: Verifying fix..."
+  echo ""
+  echo "Running: npm test -- $TEST_PATTERN"
+  echo ""
+
+  VERIFY_OUTPUT=$(npm test -- "$TEST_PATTERN" 2>&1)
   VERIFY_STATUS=$?
 
+  echo "$VERIFY_OUTPUT"
+  echo ""
+  echo "Exit code: $VERIFY_STATUS"
+  echo ""
+
   if [ $VERIFY_STATUS -eq 0 ]; then
-    echo "✅ Verification passed!"
+    echo "✅ VERIFIED: Fix successful (see test output above)"
     echo ""
     echo "📊 Healing Summary:"
-    echo "   Attempts: $((RETRY_COUNT + 1))"
-    echo "   Solution: $(echo "$SOLUTION" | jq -r '.title')"
-    echo "   Source: $(echo "$SOLUTION" | jq -r '.url')"
+    echo "   Attempts: $ATTEMPT"
+    echo "   Fix type: $FIX_TYPE"
+    echo "   Hypothesis: $HYPOTHESIS"
     echo ""
     return 0
   else
-    echo "❌ Verification failed"
-    echo "Error: $VERIFY_RESULT"
+    echo "❌ VERIFIED: Fix failed (see test output above)"
     echo ""
-    RETRY_COUNT=$((RETRY_COUNT + 1))
 
-    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-      echo "🔄 Retrying with alternative solution..."
+    ATTEMPT=$((ATTEMPT + 1))
+
+    if [ $ATTEMPT -le $MAX_ATTEMPTS ]; then
+      echo "🔄 Retrying with alternative approach..."
       echo ""
-      # Try next solution in next iteration
-      SEARCH_RESULTS=$(remove_failed_solution "$SEARCH_RESULTS" "$SOLUTION")
+      echo "Returning to Phase 1 with new information..."
+      echo ""
+      # Would re-run Phase 1-3 with learned context
     fi
   fi
 done
 
-# All retries exhausted
-echo "❌ Healing failed after $MAX_RETRIES attempts"
+# STEP 4: Failed After Max Attempts
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "❌ Healing failed after $MAX_ATTEMPTS attempts"
 echo ""
+echo "💡 Manual intervention required:"
+echo "   - Review Phase 1-3 investigation above"
+echo "   - Error may indicate architectural issue"
+echo "   - Task marked as 'failed' for manual review"
+echo ""
+
 return 1
 ```
 
-### Step 4: Return Result
-
-```bash
-# Return structured result
-cat <<EOF
----HEAL RESULT---
-task_id: $TASK_ID
-status: $([ $VERIFY_STATUS -eq 0 ] && echo "healed" || echo "failed")
-attempts: $RETRY_COUNT
-solution_applied: $(echo "$SOLUTION" | jq -r '.title')
-source_url: $(echo "$SOLUTION" | jq -r '.url')
----END HEAL RESULT---
-EOF
-```
-
 ## Helper Functions | 辅助函数
-
-### Classify Error
 
 ```bash
 classify_error() {
   local ERROR_MSG=$1
 
   case "$ERROR_MSG" in
-    *"Module"*"not found"*)
-      echo "missing_dependency"
-      ;;
-    *"Cannot find module"*)
+    *"Module"*"not found"*|*"Cannot find module"*)
       echo "missing_dependency"
       ;;
     *"TypeError"*)
       echo "type_error"
       ;;
-    *"ReferenceError"*)
+    *"ReferenceError"*|*"is not defined"*)
       echo "undefined_reference"
       ;;
     *"SyntaxError"*)
       echo "syntax_error"
       ;;
-    *"Test failed"*|*"Expected"*"but got"*)
+    *"Test failed"*|*"Expected"*"but got"*|*"AssertionError"*)
       echo "test_failure"
       ;;
     *"build failed"*|*"compilation error"*)
@@ -195,317 +423,111 @@ classify_error() {
       ;;
   esac
 }
-```
 
-### Build Search Query
-
-```bash
 build_search_query() {
   local ERROR_TYPE=$1
   local ERROR_MSG=$2
   local TASK_JSON=$3
 
-  # Extract language and framework from task metadata
   local LANGUAGE=$(echo "$TASK_JSON" | jq -r '.metadata.language // "TypeScript"')
   local FRAMEWORK=$(echo "$TASK_JSON" | jq -r '.metadata.framework // "Node.js"')
 
   case "$ERROR_TYPE" in
     missing_dependency)
-      # Extract module name from error
       MODULE=$(echo "$ERROR_MSG" | grep -oP "(?<=Module ').*(?=' not found)" || \
                echo "$ERROR_MSG" | grep -oP "(?<=Cannot find module ').*(?=')")
       echo "$LANGUAGE $FRAMEWORK install $MODULE dependency"
       ;;
     type_error)
-      echo "$LANGUAGE $FRAMEWORK TypeError $ERROR_MSG fix"
+      echo "$LANGUAGE $FRAMEWORK TypeError how to fix"
+      ;;
+    undefined_reference)
+      echo "$LANGUAGE $FRAMEWORK ReferenceError fix"
       ;;
     test_failure)
-      echo "$LANGUAGE $FRAMEWORK test failure $ERROR_MSG how to fix"
+      echo "$LANGUAGE $FRAMEWORK test failure solution"
       ;;
     build_error)
-      echo "$LANGUAGE $FRAMEWORK build error $ERROR_MSG solution"
+      echo "$LANGUAGE $FRAMEWORK build error solution"
       ;;
     *)
-      echo "$LANGUAGE $FRAMEWORK $ERROR_MSG fix"
+      echo "$LANGUAGE $FRAMEWORK error fix"
       ;;
   esac
 }
-```
 
-### Select Best Solution
+extract_line_number() {
+  echo "$1" | grep -oP ":\d+" | tr -d ':' | head -1
+}
 
-```bash
-select_best_solution() {
-  local SEARCH_RESULTS=$1
-  local ERROR_TYPE=$2
+extract_file_path() {
+  echo "$1" | grep -oP "[a-zA-Z0-9_/-]+\.ts[x]?" | head -1
+}
 
-  # In real implementation, rank solutions by:
-  # 1. Relevance to error type
-  # 2. Recency (prefer newer solutions)
-  # 3. Source reputation (Stack Overflow, official docs)
-  # 4. Code completeness
-
-  # For now, select first result
-  echo "$SEARCH_RESULTS" | jq '.[0]'
+extract_error_code() {
+  echo "$1" | grep -oP "\[TS\d+\]" | head -1
 }
 ```
 
-### Apply Fix
+## Error Handling | 错误处理
 
-```bash
-apply_fix() {
-  local SOLUTION=$1
-  local TASK_JSON=$2
-
-  local FIX_TYPE=$(echo "$SOLUTION" | jq -r '.fixType // "code"')
-
-  case "$FIX_TYPE" in
-    dependency)
-      # Install missing dependency
-      PACKAGE=$(echo "$SOLUTION" | jq -r '.package')
-      VERSION=$(echo "$SOLUTION" | jq -r '.version // "latest"')
-
-      echo "📦 Installing $PACKAGE@$VERSION..."
-      npm install "$PACKAGE@$VERSION" 2>&1
-
-      return $?
-      ;;
-
-    code)
-      # Apply code changes
-      FILE_PATH=$(echo "$SOLUTION" | jq -r '.filePath')
-      CODE_CHANGE=$(echo "$SOLUTION" | jq -r '.code')
-
-      echo "📝 Applying code change to $FILE_PATH..."
-
-      # Use Edit tool to apply change
-      # In real implementation:
-      # Use Edit tool with:
-      #   file_path: "$FILE_PATH"
-      #   old_string: "..." (from solution)
-      #   new_string: "$CODE_CHANGE"
-
-      return 0
-      ;;
-
-    config)
-      # Update configuration file
-      CONFIG_FILE=$(echo "$SOLUTION" | jq -r '.configFile')
-      CONFIG_CHANGE=$(echo "$SOLUTION" | jq -r '.config')
-
-      echo "⚙️  Updating $CONFIG_FILE..."
-
-      # Apply config change
-      # (implementation depends on config format)
-
-      return 0
-      ;;
-
-    *)
-      echo "⚠️  Unknown fix type: $FIX_TYPE"
-      return 1
-      ;;
-  esac
-}
-```
-
-### Verify Task
-
-```bash
-verify_task() {
-  local TASK_ID=$1
-
-  # Get task's test pattern
-  TASK_JSON=$(autopilot-cli tasks get "$TASK_ID" --json)
-  TEST_PATTERN=$(echo "$TASK_JSON" | jq -r '.testRequirements.unit.pattern // "**/*.test.*"')
-
-  # Run tests for this task
-  echo "Running tests: $TEST_PATTERN"
-
-  # Determine test command from project language
-  LANGUAGE=$(echo "$TASK_JSON" | jq -r '.metadata.language // "TypeScript"')
-
-  case "$LANGUAGE" in
-    TypeScript|JavaScript)
-      npm test -- "$TEST_PATTERN" 2>&1
-      ;;
-    Python)
-      pytest "$TEST_PATTERN" 2>&1
-      ;;
-    Go)
-      go test "$TEST_PATTERN" 2>&1
-      ;;
-    *)
-      echo "Unknown language: $LANGUAGE"
-      return 1
-      ;;
-  esac
-
-  return $?
-}
-```
-
-### Remove Failed Solution
-
-```bash
-remove_failed_solution() {
-  local SEARCH_RESULTS=$1
-  local FAILED_SOLUTION=$2
-
-  # Remove failed solution from results
-  local FAILED_TITLE=$(echo "$FAILED_SOLUTION" | jq -r '.title')
-
-  echo "$SEARCH_RESULTS" | jq --arg title "$FAILED_TITLE" \
-    'map(select(.title != $title))'
-}
-```
-
-## Error Type Handling | 错误类型处理
-
-| Error Type | WebSearch Strategy | Fix Strategy |
-|------------|-------------------|--------------|
-| `missing_dependency` | "{language} install {module}" | npm/pip/cargo install |
-| `type_error` | "{language} TypeError {message}" | Code correction |
-| `undefined_reference` | "{language} ReferenceError {var}" | Add import/declaration |
-| `syntax_error` | "{language} syntax error {snippet}" | Code correction |
-| `test_failure` | "{language} test {assertion} fix" | Implementation fix |
-| `build_error` | "{language} {framework} build error" | Config or code fix |
-
-## WebSearch Query Examples | WebSearch 查询示例
-
-```bash
-# Missing dependency
-"npm install bcrypt"
-"pip install requests"
-"go get github.com/..."
-
-# Type error
-"TypeScript TypeError cannot read property fix"
-"Python TypeError int object not callable"
-
-# Test failure
-"React Hook Form validation test failure fix"
-"pytest assertion error expected vs actual"
-
-# Build error
-"Next.js build error module not found"
-"Vite build failed cannot resolve path"
-```
-
-## Healing Strategies | 修复策略
-
-### Strategy 1: Dependency Installation
-
-When error matches "Module not found" pattern:
-
-1. Extract module name from error message
-2. Search: "{package_manager} install {module}"
-3. Find official package and version
-4. Install: `npm install {module}@{version}`
-5. Verify: Re-run tests
-
-### Strategy 2: Code Correction
-
-When error is type/syntax/reference error:
-
-1. Extract error location (file:line)
-2. Read surrounding code context
-3. Search: "{language} {error_type} {context} fix"
-4. Apply code change using Edit tool
-5. Verify: Re-run tests
-
-### Strategy 3: Configuration Fix
-
-When error is build/config related:
-
-1. Identify config file (tsconfig.json, vite.config.ts, etc.)
-2. Search: "{tool} {config} {error} solution"
-3. Apply config change
-4. Verify: Re-run build
-
-## Progress Updates | 进度更新
-
-Show healing progress:
-
-```
-🔧 Invoking auto-heal for task: auth.signup.api
-
-🔍 Analyzing error...
-   Task: auth.signup.api
-   Error: Module 'bcrypt' not found
-   Type: missing_dependency
-
-🔎 Searching for solutions...
-   Query: npm install bcrypt
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔧 Healing Attempt 1/3
-
-Applying fix:
-1. Install bcrypt package
-2. Version: 5.1.0 (stable)
-
-📦 Installing bcrypt@5.1.0...
-✓ bcrypt@5.1.0 installed successfully
-
-🧪 Verifying fix...
-Running tests: tests/auth/**/*.test.ts
-✅ 8/8 tests passed
-
-✅ Verification passed!
-
-📊 Healing Summary:
-   Attempts: 1
-   Solution: How to install bcrypt in Node.js
-   Source: https://npmjs.com/package/bcrypt
-
-🎉 Task healed successfully!
-```
-
-For failures:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔧 Healing Attempt 3/3
-
-Applying fix:
-1. Update TypeScript config
-2. Add "esModuleInterop": true
-
-⚙️  Updating tsconfig.json...
-✓ Config updated
-
-🧪 Verifying fix...
-Running tests: tests/auth/**/*.test.ts
-❌ 2/8 tests failed
-   - should hash password: TypeError still present
-
-❌ Verification failed
-Error: Type error persists after config change
-
-❌ Healing failed after 3 attempts
-
-💡 Manual intervention required:
-   - Review error details above
-   - Check task file: ai/tasks/auth/signup.api.md
-   - Task marked as 'failed' in index
-```
+| Error | Action |
+|-------|--------|
+| Cannot reproduce | Gather more data, check environment |
+| No working examples | Use WebSearch for reference implementations |
+| All 3 attempts fail | Mark task as failed, require manual intervention |
+| Hypothesis unclear | Return to Phase 1 with more investigation |
 
 ## Rules | 规则
 
-1. **Maximum 3 retries** - Stop after 3 failed healing attempts
-2. **One solution at a time** - Don't apply multiple fixes simultaneously
-3. **Verify after each fix** - Always run tests/build after applying fix
-4. **Use WebSearch** - Don't guess solutions, search for proven answers
-5. **Prefer official sources** - npm docs, official framework docs over blog posts
-6. **Log all attempts** - Record what was tried for manual review if healing fails
-7. **Clean state** - Revert failed fixes before trying next solution
+1. **ALWAYS complete Phase 1** - No skipping root cause investigation
+2. **One fix at a time** - Don't apply multiple changes simultaneously
+3. **Verify with tests** - Run tests after every fix attempt
+4. **Max 3 attempts** - After 3 failures, escalate to manual review
+5. **Use WebSearch to confirm** - Don't guess, search for proven solutions
+6. **Evidence required** - Show full test output for verification
+7. **No fixes without investigation** - Investigation MUST precede fixes
+
+## Progress Updates | 进度更新
+
+```
+🔍 Phase 1: Root Cause Investigation
+   ✓ Error reproduced consistently
+   ✓ Recent changes reviewed
+   ✓ Data flow traced
+   Root cause: Missing bcrypt dependency
+
+🔎 Phase 2: Pattern Analysis
+   ✓ Found 3 working examples
+   ✓ Compared differences
+   ✓ Dependencies checked
+
+💡 Phase 3: Hypothesis and Testing
+   Hypothesis: bcrypt module not installed
+   ✓ Confirmed via WebSearch
+
+🔧 Phase 4: Implementation (Attempt 1/3)
+   Applying fix: npm install bcrypt@5.1.0
+
+   Running: npm test -- tests/auth/**/*.test.ts
+
+   [Full test output shown]
+
+   Exit code: 0
+
+   ✅ VERIFIED: Fix successful (see test output above)
+
+   📊 Healing Summary:
+      Attempts: 1
+      Fix type: dependency
+      Hypothesis: bcrypt module not installed
+```
 
 ## Notes | 注意事项
 
-- Healing works best for common errors (missing dependencies, type errors)
-- Complex logic errors may need human intervention
-- Always verify fixes with tests, not just successful builds
-- WebSearch results quality determines healing success rate
-- 3-retry limit prevents infinite loops on unsolvable errors
+- Systematic debugging is FASTER than random fixes
+- Each phase builds on previous phases - don't skip
+- WebSearch is for confirming hypotheses, not replacing investigation
+- 3-attempt limit prevents infinite loops
 - Failed healing should mark task as 'failed' for manual review
+- ALWAYS show full verification output - evidence before claims
