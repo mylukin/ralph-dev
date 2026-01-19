@@ -222,20 +222,76 @@ Do you approve this task breakdown?
   C) Cancel ralph-dev
 ```
 
-Use AskUserQuestion:
+**Determine Recommendation:**
 
-```markdown
-Use AskUserQuestion tool with:
-  question: "Do you approve this task breakdown?"
-  header: "Approval"
-  options:
-    - label: "Yes, proceed"
-      description: "Start implementing tasks as planned"
-    - label: "Modify first"
-      description: "I'll edit tasks in .ralph-dev/tasks/ before proceeding"
-    - label: "Cancel"
-      description: "Stop ralph-dev here"
+Before asking, analyze task breakdown quality to determine which option to recommend:
+
+```bash
+# Analyze task breakdown quality
+TOTAL_TASKS=$(ralph-dev tasks list --json | jq 'length')
+
+# Check if all tasks have clear acceptance criteria
+ALL_HAVE_CRITERIA=true
+for task_file in .ralph-dev/tasks/*/*.md; do
+  if ! grep -q "## Acceptance Criteria" "$task_file"; then
+    ALL_HAVE_CRITERIA=false
+    break
+  fi
+done
+
+# Check if all tasks are reasonably sized (<30 min)
+REALISTIC_SIZES=true
+MAX_ESTIMATE=$(ralph-dev tasks list --json | jq '[.[].estimatedMinutes] | max')
+if [ "$MAX_ESTIMATE" -gt 30 ]; then
+  REALISTIC_SIZES=false
+fi
+
+# Determine which option to recommend
+if [ "$ALL_HAVE_CRITERIA" = true ] && [ "$REALISTIC_SIZES" = true ] && [ "$TOTAL_TASKS" -lt 50 ]; then
+  RECOMMENDED_LABEL="Yes, proceed (Recommended)"
+else
+  RECOMMENDED_LABEL="Modify first (Recommended)"
+fi
 ```
+
+**Ask User with Official Structure:**
+
+Use AskUserQuestion tool with proper JSON structure:
+
+```json
+{
+  "questions": [
+    {
+      "question": "Do you approve this task breakdown?",
+      "header": "Approval",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "Yes, proceed",
+          "description": "Start implementing all tasks as planned. Criteria are clear and estimates are reasonable."
+        },
+        {
+          "label": "Modify first",
+          "description": "Let me review and edit task files in .ralph-dev/tasks/ before proceeding"
+        },
+        {
+          "label": "Cancel",
+          "description": "Stop Ralph-dev and discard this task breakdown entirely"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**IMPORTANT:**
+- Dynamically add "(Recommended)" suffix to the `label` field based on analysis above
+- If breakdown quality is high → Use "Yes, proceed (Recommended)"
+- If breakdown needs review → Use "Modify first (Recommended)"
+- ✅ Wrapped in `questions` array (official structure)
+- ✅ `multiSelect: false` explicitly set
+- ✅ `header` is 8 characters (within 12-char limit)
+- ✅ Clear descriptions explaining what happens next
 
 ### Step 7: Handle User Response
 

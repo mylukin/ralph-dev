@@ -45,41 +45,141 @@ Questions should cover:
 4. **Authentication** - None, basic, OAuth, custom
 5. **Deployment** - Local, cloud, specific platform
 
-Use AskUserQuestion tool:
+**IMPORTANT:** Use the AskUserQuestion tool with proper JSON structure following official Claude Code standards.
 
-```markdown
-Use AskUserQuestion with questions like:
+**Official Structure:**
 
-Question 1: What type of application?
-  A) Web application (React/Vue/Angular frontend)
-  B) Mobile application (React Native/Flutter)
-  C) Backend API only (REST/GraphQL)
-  D) Full-stack application (frontend + backend)
-
-Question 2: What's your tech stack preference?
-  A) TypeScript/JavaScript (Node.js ecosystem)
-  B) Python (Django/Flask/FastAPI)
-  C) Go (high performance)
-  D) No preference (you choose best fit)
-
-Question 3: What's the target scale?
-  A) MVP/Prototype (quick proof of concept)
-  B) Production-ready (scalable, tested)
-  C) Enterprise-grade (high availability, security)
-  D) Learning project (focus on best practices)
-
-Question 4: Authentication requirements?
-  A) No authentication needed
-  B) Basic email/password authentication
-  C) OAuth (Google, GitHub, etc.)
-  D) Custom authentication system
-
-Question 5: Deployment target?
-  A) Local development only
-  B) Cloud platform (Vercel, Netlify, AWS)
-  C) Self-hosted (Docker, VPS)
-  D) Not decided yet
+```json
+{
+  "questions": [
+    {
+      "question": "What type of application do you want to build?",
+      "header": "App Type",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "Web app (Recommended)",
+          "description": "React/Vue/Angular frontend with responsive design for browsers"
+        },
+        {
+          "label": "Mobile app",
+          "description": "React Native or Flutter for iOS and Android platforms"
+        },
+        {
+          "label": "API backend",
+          "description": "REST or GraphQL API without frontend interface"
+        },
+        {
+          "label": "Full-stack",
+          "description": "Integrated frontend and backend in single project"
+        }
+      ]
+    },
+    {
+      "question": "What's your preferred tech stack?",
+      "header": "Tech Stack",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "TypeScript (Recommended)",
+          "description": "Type-safe JavaScript with excellent tooling and npm ecosystem"
+        },
+        {
+          "label": "Python",
+          "description": "Django, Flask, or FastAPI frameworks for rapid development"
+        },
+        {
+          "label": "Go",
+          "description": "High-performance compiled language for scalable services"
+        },
+        {
+          "label": "Let AI decide",
+          "description": "Ralph-dev selects the best fit based on your requirements"
+        }
+      ]
+    },
+    {
+      "question": "What's the target scale for this project?",
+      "header": "Scale",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "MVP/Prototype",
+          "description": "Quick proof of concept to validate ideas rapidly"
+        },
+        {
+          "label": "Production (Recommended)",
+          "description": "Scalable, tested, ready for real users with proper error handling"
+        },
+        {
+          "label": "Enterprise",
+          "description": "High availability, security compliance, audit logs required"
+        },
+        {
+          "label": "Learning",
+          "description": "Focus on best practices and educational exploration"
+        }
+      ]
+    },
+    {
+      "question": "What authentication method do you need?",
+      "header": "Auth",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "None",
+          "description": "Public access, no login or user accounts required"
+        },
+        {
+          "label": "Basic (Recommended)",
+          "description": "Email and password with secure bcrypt hashing"
+        },
+        {
+          "label": "OAuth",
+          "description": "Third-party providers like Google, GitHub, or Microsoft"
+        },
+        {
+          "label": "Custom",
+          "description": "Advanced authentication with specific requirements"
+        }
+      ]
+    },
+    {
+      "question": "Where will you deploy this application?",
+      "header": "Deployment",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "Local only",
+          "description": "Run on local machine for development and testing"
+        },
+        {
+          "label": "Cloud (Recommended)",
+          "description": "Vercel, Netlify, AWS, or similar managed platforms"
+        },
+        {
+          "label": "Self-hosted",
+          "description": "Docker containers, VPS, or your own infrastructure"
+        },
+        {
+          "label": "Undecided",
+          "description": "Will choose deployment strategy later"
+        }
+      ]
+    }
+  ]
+}
 ```
+
+**Key Points:**
+- ✅ All questions wrapped in `questions` array (max 4 questions per call)
+- ✅ Each question has `header` field (max 12 chars): "App Type", "Tech Stack", "Scale", "Auth", "Deployment"
+- ✅ `multiSelect: false` explicitly set for single-choice questions
+- ✅ "(Recommended)" suffix added to sensible default options
+- ✅ Descriptions explain implications and trade-offs
+- ✅ No manual "Other" option (provided automatically by Claude Code)
+- ⚠️ This tool has 60-second timeout - keep questions simple
+- ⚠️ Cannot be used in sub-agents spawned via Task tool
 
 ### Step 3: Collect Answers
 
