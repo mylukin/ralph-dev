@@ -59,18 +59,6 @@ Phase 4: HEAL      → Phase 5: DELIVER
 
 **Phase 5** (auto): Runs quality gates and creates PR
 
-## Performance
-
-Based on 500+ production tasks:
-
-| Metric | Manual | Copilot | Ralph-dev |
-|--------|--------|---------|-----------|
-| Completion rate | 60% | 70% | **94%** |
-| Auto-healing | N/A | N/A | **86%** |
-| Time savings | - | 30% | **67%** |
-| Test coverage | 45% | 55% | **85%** |
-| PR approval | 65% | 68% | **78%** |
-
 ## Installation
 
 ### Prerequisites
@@ -130,7 +118,7 @@ ralph-dev/
 **Workspace structure:**
 ```
 your-project/
-└── .autopilot/
+└── .ralph-dev/
     ├── state.json
     ├── prd.md
     └── tasks/
