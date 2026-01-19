@@ -4,7 +4,7 @@
   "description": "CLI tool for Ralph-dev - efficient operations for AI agents",
   "main": "dist/index.js",
   "bin": {
-    "ralph-dev": "./bin/ralph-dev.js"
+    "ralph-dev": "bin/ralph-dev.js"
   },
   "files": [
     "dist",
@@ -35,7 +35,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mylukin/ralph-dev.git",
+    "url": "git+https://github.com/mylukin/ralph-dev.git",
     "directory": "cli"
   },
   "homepage": "https://github.com/mylukin/ralph-dev#readme",
