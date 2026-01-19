@@ -1,7 +1,7 @@
 {
   "name": "ralph-dev",
   "version": "2.2.0",
-  "description": "CLI tool for Foreman - efficient operations for AI agents",
+  "description": "CLI tool for Ralph-dev - efficient operations for AI agents",
   "main": "dist/index.js",
   "bin": {
     "ralph-dev": "./bin/ralph-dev.js"

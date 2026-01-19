@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "ralph-dev-marketplace",
   "version": "1.0.0",
-  "description": "Official marketplace for Foreman - Autonomous AI Development System",
+  "description": "Official marketplace for Ralph-dev - Autonomous AI Development System",
   "owner": {
     "name": "Lukin",
     "email": "[email protected]"

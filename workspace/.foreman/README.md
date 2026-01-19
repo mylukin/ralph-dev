@@ -1,6 +1,6 @@
-# Foreman Workspace
+# Ralph-dev Workspace
 
-This directory contains AI-generated artifacts from the Foreman plugin for Claude Code.
+This directory contains AI-generated artifacts from the Ralph-dev plugin for Claude Code.
 
 ## Structure
 
@@ -12,7 +12,7 @@ This directory contains AI-generated artifacts from the Foreman plugin for Claud
 
 ## Safe to Delete?
 
-Yes, but you'll lose session progress. Foreman will start fresh next time.
+Yes, but you'll lose session progress. Ralph-dev will start fresh next time.
 
 ## Resuming Work on Different Machine
 

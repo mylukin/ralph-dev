@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Foreman CLI Bootstrap Script
+# Ralph-dev CLI Bootstrap Script
 # Include this at the top of every skill that uses ralph-dev
 #
 # Usage in SKILL.md:
@@ -124,7 +124,7 @@ validate_cli() {
 check_node_version() {
   if ! command -v node &> /dev/null; then
     log_error "Node.js is not installed"
-    log_error "Foreman requires Node.js >= 18.0.0"
+    log_error "Ralph-dev requires Node.js >= 18.0.0"
     log_error "Install from: https://nodejs.org/"
     return 1
   fi
@@ -136,7 +136,7 @@ check_node_version() {
 
   if [ "$major_version" -lt 18 ]; then
     log_error "Node.js version $node_version is too old"
-    log_error "Foreman requires Node.js >= 18.0.0"
+    log_error "Ralph-dev requires Node.js >= 18.0.0"
     log_error "Current version: $node_version"
     return 1
   fi
@@ -203,7 +203,7 @@ build_cli() {
   if [ "${BOOTSTRAP_QUIET:-0}" != "1" ]; then
     echo ""
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BOLD}🔧 Building Foreman CLI${NC}"
+    echo -e "${BOLD}🔧 Building Ralph-dev CLI${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   fi
 
@@ -266,7 +266,7 @@ bootstrap_ralph-dev_cli() {
   if check_cli_exists; then
     if validate_cli; then
       # CLI exists and works - we're done
-      log_success "Foreman CLI ready"
+      log_success "Ralph-dev CLI ready"
       return 0
     else
       # CLI exists but is broken - rebuild
@@ -280,7 +280,7 @@ bootstrap_ralph-dev_cli() {
   else
     # CLI doesn't exist - build it
     if [ "${BOOTSTRAP_QUIET:-0}" != "1" ]; then
-      log_info "Foreman CLI not found (this is normal on first use)"
+      log_info "Ralph-dev CLI not found (this is normal on first use)"
     fi
     if ! build_cli; then
       log_error "CRITICAL: CLI build failed"
@@ -290,7 +290,7 @@ bootstrap_ralph-dev_cli() {
 
   # Final validation
   if validate_cli; then
-    log_success "Foreman CLI ready"
+    log_success "Ralph-dev CLI ready"
     return 0
   else
     log_error "CRITICAL: CLI validation failed after build"

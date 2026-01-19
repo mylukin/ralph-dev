@@ -14,7 +14,7 @@ const workspaceDir = process.env.FOREMAN_WORKSPACE || process.cwd();
 
 program
   .name('ralph-dev')
-  .description('CLI tool for Foreman - efficient operations for AI agents')
+  .description('CLI tool for Ralph-dev - efficient operations for AI agents')
   .version(version);
 
 // Register command groups

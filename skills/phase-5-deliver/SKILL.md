@@ -27,9 +27,9 @@ Invoked by dev-orchestrator as Phase 5, after Phase 3 (Implement) completes all 
 
 ### Step 0: Initialize CLI (Automatic)
 
-**IMPORTANT:** This skill requires the Foreman CLI. It will build automatically on first use.
+**IMPORTANT:** This skill requires the Ralph-dev CLI. It will build automatically on first use.
 
-> **重要：**此技能需要 Foreman CLI。首次使用时将自动构建。
+> **重要：**此技能需要 Ralph-dev CLI。首次使用时将自动构建。
 
 ```bash
 # Bootstrap CLI - runs automatically, builds if needed
@@ -358,7 +358,7 @@ echo "   • Spec compliance: $([ $SPEC_REVIEW_STATUS -eq 0 ] && echo '✓' || e
 echo "   • Code quality: $([ $QUALITY_REVIEW_STATUS -eq 0 ] && echo '✓' || echo '⚠️  with suggestions')"
 echo ""
 
-echo "🎉 Foreman workflow complete!"
+echo "🎉 Ralph-dev workflow complete!"
 echo ""
 ```
 
@@ -602,7 +602,7 @@ generate_pr_body() {
   cat <<EOF
 ## Summary
 
-Foreman implementation of $TASK_COUNT tasks.
+Ralph-dev implementation of $TASK_COUNT tasks.
 
 ## Implemented Tasks
 
@@ -641,7 +641,7 @@ Run tests: \`npm test\` (or project-specific command)
 
 ---
 
-🤖 Generated with [Foreman](https://github.com/mylukin/ralph-dev) for Claude Code
+🤖 Generated with [Ralph-dev](https://github.com/mylukin/ralph-dev) for Claude Code
 EOF
 }
 ```
@@ -732,7 +732,7 @@ Checks:
    • Spec compliance: ✓
    • Code quality: ⚠️  with suggestions
 
-🎉 Foreman workflow complete!
+🎉 Ralph-dev workflow complete!
 ```
 
 ### Delivery with Quality Gate Failure

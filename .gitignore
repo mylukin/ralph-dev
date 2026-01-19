@@ -38,7 +38,7 @@ temp/
 .claude/
 .claude-plugin/.local/
 
-# Foreman - Ignore runtime state, keep documentation
+# Ralph-dev - Ignore runtime state, keep documentation
 .ralph-dev/state.json
 .ralph-dev/progress.log
 .ralph-dev/debug.log

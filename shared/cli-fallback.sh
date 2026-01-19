@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Foreman CLI Fallback Functions
+# Ralph-dev CLI Fallback Functions
 # Provides basic task operations when the TypeScript CLI is unavailable
 #
 # Usage:

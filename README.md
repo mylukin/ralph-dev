@@ -1,4 +1,4 @@
-# Foreman
+# Ralph-dev
 
 > Transform requirements into production-ready code autonomously with Claude Code
 
@@ -8,19 +8,19 @@
 
 ---
 
-## What is Foreman?
+## What is Ralph-dev?
 
-Foreman is an autonomous development system for Claude Code that transforms a single requirement into tested, production-ready code with minimal human intervention.
+Ralph-dev is an autonomous development system for Claude Code that transforms a single requirement into tested, production-ready code with minimal human intervention.
 
-> Foreman 是一个 Claude Code 自主开发系统，能将单个需求自动转化为经过测试的生产就绪代码，几乎无需人工干预。
+> Ralph-dev 是一个 Claude Code 自主开发系统，能将单个需求自动转化为经过测试的生产就绪代码，几乎无需人工干预。
 
 **The Problem:** Writing software involves repetitive workflows—clarifying requirements, breaking down tasks, writing tests, fixing bugs, code review, creating PRs. These steps are time-consuming and error-prone.
 
 > **问题所在：** 软件开发涉及重复性工作流程——明确需求、任务分解、编写测试、修复 bug、代码审查、创建 PR。这些步骤既耗时又容易出错。
 
-**The Solution:** Foreman automates the entire development lifecycle with a 5-phase autonomous workflow, achieving 94% task completion rate while maintaining strict TDD standards.
+**The Solution:** Ralph-dev automates the entire development lifecycle with a 5-phase autonomous workflow, achieving 94% task completion rate while maintaining strict TDD standards.
 
-> **解决方案：** Foreman 通过 5 阶段自主工作流自动化整个开发生命周期，实现 94% 的任务完成率，同时保持严格的 TDD 标准。
+> **解决方案：** Ralph-dev 通过 5 阶段自主工作流自动化整个开发生命周期，实现 94% 的任务完成率，同时保持严格的 TDD 标准。
 
 ---
 
@@ -34,13 +34,13 @@ In your Claude Code conversation:
 /plugin marketplace add mylukin/ralph-dev
 ```
 
-This registers the Foreman plugin catalog with Claude Code.
+This registers the Ralph-dev plugin catalog with Claude Code.
 
 > 步骤 1：添加 marketplace
 >
-> 这会在 Claude Code 中注册 Foreman 插件目录。
+> 这会在 Claude Code 中注册 Ralph-dev 插件目录。
 
-### Step 2: Install the Foreman plugin
+### Step 2: Install the Ralph-dev plugin
 
 ```
 /plugin install ralph-dev
@@ -48,7 +48,7 @@ This registers the Foreman plugin catalog with Claude Code.
 
 The plugin will auto-build its CLI on first use (~15-30 seconds one-time).
 
-> 步骤 2：安装 Foreman 插件
+> 步骤 2：安装 Ralph-dev 插件
 >
 > 插件会在首次使用时自动构建 CLI（一次性，约 15-30 秒）。
 
@@ -60,13 +60,13 @@ The plugin will auto-build its CLI on first use (~15-30 seconds one-time).
 
 > 步骤 3：运行你的第一个任务
 
-**That's it!** Foreman will:
+**That's it!** Ralph-dev will:
 1. Ask 3-5 clarifying questions (answer A/B/C/D)
 2. Generate a task breakdown plan (review & approve)
 3. Implement autonomously with TDD (watch real-time progress)
 4. Create PR automatically (review & merge)
 
-> **就这样！** Foreman 将会：
+> **就这样！** Ralph-dev 将会：
 > 1. 提出 3-5 个澄清问题（回答 A/B/C/D）
 > 2. 生成任务分解计划（审查并批准）
 > 3. 使用 TDD 自主实现（观看实时进度）
@@ -133,7 +133,7 @@ Phase 4: HEAL         Phase 5: DELIVER
   Auto-fix errors  →  Verify + Commit + PR
 ```
 
-> Foreman 工作流
+> Ralph-dev 工作流
 
 ### Example: Real-World Task Execution
 
@@ -229,7 +229,7 @@ Based on production usage across 500+ tasks:
 
 > 基于 500+ 任务的生产使用数据：
 
-| Metric | Manual Dev | Copilot/Cursor | **Foreman** |
+| Metric | Manual Dev | Copilot/Cursor | **Ralph-dev** |
 |--------|-----------|----------------|--------------|
 | Task completion rate | ~60% | ~70% | **94%** ✅ |
 | Auto-healing success | N/A | N/A | **86%** ✅ |
@@ -238,9 +238,9 @@ Based on production usage across 500+ tasks:
 | PR approval rate | ~65% | ~68% | **78%** ✅ |
 | Bugs in production | Baseline | ~0.8x | **~0.3x** ✅ |
 
-**Translation:** Foreman saves ~2/3 of development time while producing higher-quality, better-tested code.
+**Translation:** Ralph-dev saves ~2/3 of development time while producing higher-quality, better-tested code.
 
-> **解读：** Foreman 节省约 2/3 的开发时间，同时生成更高质量、经过更好测试的代码。
+> **解读：** Ralph-dev 节省约 2/3 的开发时间，同时生成更高质量、经过更好测试的代码。
 
 ---
 
@@ -275,7 +275,7 @@ A **marketplace** is a plugin catalog that helps you discover and install Claude
 
 ### Detailed Installation
 
-#### Step 1: Add the Foreman marketplace
+#### Step 1: Add the Ralph-dev marketplace
 
 In any Claude Code conversation:
 
@@ -283,29 +283,29 @@ In any Claude Code conversation:
 /plugin marketplace add mylukin/ralph-dev
 ```
 
-This adds the Foreman plugin catalog to Claude Code, allowing you to discover and install the plugin.
+This adds the Ralph-dev plugin catalog to Claude Code, allowing you to discover and install the plugin.
 
-> 这会将 Foreman 插件目录添加到 Claude Code，允许你发现和安装插件。
+> 这会将 Ralph-dev 插件目录添加到 Claude Code，允许你发现和安装插件。
 
 **What this does:**
 - Registers the plugin catalog (no plugins installed yet)
-- Enables browsing available Foreman versions
-- Connects to the official Foreman repository
+- Enables browsing available Ralph-dev versions
+- Connects to the official Ralph-dev repository
 
 > **作用：**
 > - 注册插件目录（尚未安装插件）
-> - 启用浏览可用的 Foreman 版本
-> - 连接到官方 Foreman 仓库
+> - 启用浏览可用的 Ralph-dev 版本
+> - 连接到官方 Ralph-dev 仓库
 
-#### Step 2: Install the Foreman plugin
+#### Step 2: Install the Ralph-dev plugin
 
 ```
 /plugin install ralph-dev
 ```
 
-This installs the Foreman plugin with all its skills, commands, and agents.
+This installs the Ralph-dev plugin with all its skills, commands, and agents.
 
-> 这会安装 Foreman 插件及其所有技能、命令和代理。
+> 这会安装 Ralph-dev 插件及其所有技能、命令和代理。
 
 **What happens during installation:**
 - Downloads plugin files to `~/.claude/plugins/ralph-dev`
@@ -325,9 +325,9 @@ This installs the Foreman plugin with all its skills, commands, and agents.
 /ralph-dev --help
 ```
 
-You should see the Foreman command help message.
+You should see the Ralph-dev command help message.
 
-> 你应该看到 Foreman 命令帮助消息。
+> 你应该看到 Ralph-dev 命令帮助消息。
 
 **First use note:** The CLI will auto-build on first `/ralph-dev` invocation (~15-30 seconds one-time). Subsequent uses are instant.
 
@@ -377,13 +377,13 @@ ln -s $(pwd) ~/.claude/plugins/ralph-dev
 /ralph-dev "Add real-time notifications using WebSockets"
 ```
 
-**Foreman will:**
+**Ralph-dev will:**
 - Clarify: Push vs SSE vs WebSocket, message format, authentication
 - Break down: Server setup, client library, UI components, tests
 - Implement: With TDD, error handling, reconnection logic
 - Deliver: Working feature + comprehensive test suite + PR
 
-> Foreman 将：澄清、分解、实现、交付
+> Ralph-dev 将：澄清、分解、实现、交付
 
 ### Example 2: Bug Fix with Tests
 
@@ -391,7 +391,7 @@ ln -s $(pwd) ~/.claude/plugins/ralph-dev
 /ralph-dev "Fix: Users can bypass email verification by direct API calls"
 ```
 
-**Foreman will:**
+**Ralph-dev will:**
 - Clarify: Scope (which endpoints?), desired behavior
 - Break down: Security patch, middleware updates, test coverage
 - Implement: Fix + regression tests + security audit
@@ -403,7 +403,7 @@ ln -s $(pwd) ~/.claude/plugins/ralph-dev
 /ralph-dev "Refactor authentication middleware to use decorator pattern"
 ```
 
-**Foreman will:**
+**Ralph-dev will:**
 - Clarify: Migration strategy, backwards compatibility
 - Break down: New decorator classes, migration plan, parallel tests
 - Implement: Incremental refactor with zero downtime
@@ -415,9 +415,9 @@ ln -s $(pwd) ~/.claude/plugins/ralph-dev
 
 ### Hybrid Design: Skills + CLI
 
-Foreman uses a **hybrid architecture** for optimal performance:
+Ralph-dev uses a **hybrid architecture** for optimal performance:
 
-> Foreman 使用混合架构以获得最佳性能：
+> Ralph-dev 使用混合架构以获得最佳性能：
 
 - **Skills (AI)**: Decision-making, code generation, debugging, review
 - **CLI (TypeScript)**: High-speed file operations, state management, task indexing
@@ -573,7 +573,7 @@ npm run build
 
 ---
 
-## Comparison: Foreman vs Alternatives
+## Comparison: Ralph-dev vs Alternatives
 
 ### vs Manual Development
 - ✅ Automates entire workflow (clarify → deliver)
@@ -599,11 +599,11 @@ npm run build
 - ✅ Universal language support (auto-detection)
 - ✅ Production-ready (94% task completion rate)
 
-> 对比：Foreman vs 替代方案
+> 对比：Ralph-dev vs 替代方案
 
 ---
 
-## Who Should Use Foreman?
+## Who Should Use Ralph-dev?
 
 ### ✅ Perfect For:
 - **Solo developers** building MVPs or side projects
@@ -617,7 +617,7 @@ npm run build
 - Extremely complex domains requiring deep specialized knowledge
 - Codebases with unconventional structures that break auto-detection
 
-> 谁应该使用 Foreman？
+> 谁应该使用 Ralph-dev？
 
 ---
 
@@ -629,7 +629,7 @@ We welcome contributions! Here's how to get started:
 
 ### Report Bugs
 [Create an issue](https://github.com/mylukin/ralph-dev/issues) with:
-- Foreman version (`/ralph-dev --version`)
+- Ralph-dev version (`/ralph-dev --version`)
 - Claude Code version
 - Steps to reproduce
 - Expected vs actual behavior
@@ -705,11 +705,11 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 Built with ❤️ for the Claude Code community.
 
-Special thanks to early testers and contributors who helped shape Foreman into a production-ready tool.
+Special thanks to early testers and contributors who helped shape Ralph-dev into a production-ready tool.
 
 > 为 Claude Code 社区倾力打造 ❤️
 >
-> 特别感谢早期测试者和贡献者，他们帮助将 Foreman 打造成生产就绪的工具。
+> 特别感谢早期测试者和贡献者，他们帮助将 Ralph-dev 打造成生产就绪的工具。
 
 ---
 

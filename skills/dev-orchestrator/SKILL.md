@@ -5,7 +5,7 @@ allowed-tools: [Task, Read, Write, Bash]
 user-invocable: true
 ---
 
-# Foreman Orchestrator
+# Ralph-dev Orchestrator
 
 ## Overview
 
@@ -49,7 +49,7 @@ ralph-dev state set --phase clarify
 ### Phase 1: CLARIFY (Interactive)
 
 ```markdown
-🚀 Starting Foreman...
+🚀 Starting Ralph-dev...
 
 Requirement: $USER_REQUIREMENT
 Mode: Full autonomous development
@@ -290,7 +290,7 @@ Next steps:
 2. Merge when approved
 3. Deploy to production
 
-Thank you for using Foreman! 🎉
+Thank you for using Ralph-dev! 🎉
 ```
 
 **Archive session:**

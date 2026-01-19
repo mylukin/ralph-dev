@@ -13,7 +13,7 @@ examples:
 
 ## Description
 
-Start the Foreman autonomous development system. Transforms a single requirement into production-ready, tested code through a 5-phase workflow with zero manual intervention.
+Start the Ralph-dev autonomous development system. Transforms a single requirement into production-ready, tested code through a 5-phase workflow with zero manual intervention.
 
 ---
 
@@ -195,13 +195,13 @@ Next steps:
 2. Merge when approved
 3. Deploy to production
 
-Thank you for using Foreman! 🎉
+Thank you for using Ralph-dev! 🎉
 ```
 
 ### Status Output
 
 ```markdown
-📊 Foreman Status
+📊 Ralph-dev Status
 
 Phase:    implement (3/5)
 Progress: 9/15 tasks completed (60%)
@@ -241,7 +241,7 @@ The orchestrator skill handles:
 
 ## Files Created
 
-During execution, Foreman creates these files in `.ralph-dev/`:
+During execution, Ralph-dev creates these files in `.ralph-dev/`:
 
 ```
 .ralph-dev/
@@ -273,7 +273,7 @@ During execution, Foreman creates these files in `.ralph-dev/`:
 
 ## Configuration
 
-Foreman respects these settings in `.ralph-dev/tasks/index.json`:
+Ralph-dev respects these settings in `.ralph-dev/tasks/index.json`:
 
 ```json
 {
@@ -303,7 +303,7 @@ Foreman respects these settings in `.ralph-dev/tasks/index.json`:
 - "Fix the bug" (use debugging tools, not ralph-dev)
 - "Refactor everything" (too broad, specify what to refactor)
 
-### When to Use Foreman
+### When to Use Ralph-dev
 
 ✅ **Use when:**
 - Building new features
@@ -325,7 +325,7 @@ If interrupted (network issue, timeout, etc.), simply run:
 /ralph-dev resume
 ```
 
-Foreman will continue from the last saved state.
+Ralph-dev will continue from the last saved state.
 
 ---
 
@@ -345,8 +345,8 @@ Foreman will continue from the last saved state.
 ```bash
 User: /ralph-dev "Build a blog platform with markdown support and comments"
 
-Foreman:
-🚀 Starting Foreman...
+Ralph-dev:
+🚀 Starting Ralph-dev...
 Phase 1/5: Clarifying requirements...
 
 Question 1/5: What type of frontend?
@@ -376,8 +376,8 @@ Phase 3/5: Implementing tasks...
 ```bash
 User: /ralph-dev "Add user profile page with avatar upload and bio editing"
 
-Foreman:
-🚀 Starting Foreman...
+Ralph-dev:
+🚀 Starting Ralph-dev...
 
 Phase 0/5: Detecting project configuration...
 ✅ Detected: TypeScript + React + Vite
@@ -391,7 +391,7 @@ Phase 1/5: Clarifying requirements...
 ```bash
 User: /ralph-dev resume
 
-Foreman:
+Ralph-dev:
 ┌────────────────────────────────────┐
 │ 🚀 FOREMAN SESSION RESUMED       │
 ├────────────────────────────────────┤

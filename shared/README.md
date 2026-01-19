@@ -1,12 +1,12 @@
 # Shared Bootstrap Scripts
 
-This directory contains reusable scripts for all Foreman skills.
+This directory contains reusable scripts for all Ralph-dev skills.
 
 ## Files
 
 ### `bootstrap-cli.sh` (Required)
 
-**Purpose:** Automatically detect, build, and validate the Foreman TypeScript CLI.
+**Purpose:** Automatically detect, build, and validate the Ralph-dev TypeScript CLI.
 
 **Usage in skills:**
 ```bash
@@ -36,7 +36,7 @@ ralph-dev state update --phase implement
 **Example output:**
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔧 Building Foreman CLI
+🔧 Building Ralph-dev CLI
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ▸ Installing dependencies...
 ✓ Dependencies installed
@@ -44,7 +44,7 @@ ralph-dev state update --phase implement
 ✓ CLI compiled successfully
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-✓ Foreman CLI ready
+✓ Ralph-dev CLI ready
 ```
 
 ---
@@ -122,10 +122,10 @@ Available functions:
 
 **Expected output:**
 ```
-Testing Foreman CLI Bootstrap...
+Testing Ralph-dev CLI Bootstrap...
 
 1. Testing bootstrap script sourcing...
-✓ Foreman CLI ready
+✓ Ralph-dev CLI ready
 
 2. Testing ralph-dev function...
 ✓ ralph-dev function is available
@@ -189,12 +189,12 @@ Run the skill and verify bootstrap works:
 # Subsequent runs: Should skip build
 
 # Expected first run:
-🔧 Building Foreman CLI...
+🔧 Building Ralph-dev CLI...
 ✓ CLI compiled successfully
-✓ Foreman CLI ready
+✓ Ralph-dev CLI ready
 
 # Expected subsequent runs:
-✓ Foreman CLI ready
+✓ Ralph-dev CLI ready
 ```
 
 ---
@@ -273,5 +273,5 @@ See [docs/CLI_ARCHITECTURE.md](../docs/CLI_ARCHITECTURE.md) for full rationale.
 
 ---
 
-**Maintained by:** Foreman Team
+**Maintained by:** Ralph-dev Team
 **Issues:** https://github.com/mylukin/ralph-dev/issues

@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-echo "Testing Foreman CLI Bootstrap..."
+echo "Testing Ralph-dev CLI Bootstrap..."
 echo ""
 
 # Set up environment

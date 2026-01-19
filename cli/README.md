@@ -1,16 +1,16 @@
-# Foreman CLI
+# Ralph-dev CLI
 
 **Version:** 2.1.0
 **Language:** TypeScript
-**Purpose:** Efficient operations for Foreman skills
+**Purpose:** Efficient operations for Ralph-dev skills
 
-A high-performance TypeScript-based command-line tool for Foreman skills.
+A high-performance TypeScript-based command-line tool for Ralph-dev skills.
 
 ---
 
 ## Overview
 
-The Foreman CLI is a TypeScript-based command-line tool that provides fast, reliable operations for:
+The Ralph-dev CLI is a TypeScript-based command-line tool that provides fast, reliable operations for:
 
 - Task management (CRUD)
 - State management
@@ -718,7 +718,7 @@ const program = new Command();
 
 program
   .name('ralph-dev')
-  .description('Foreman CLI - Efficient operations for AI agents')
+  .description('Ralph-dev CLI - Efficient operations for AI agents')
   .version('2.1.0');
 
 // State management
@@ -826,4 +826,4 @@ npm test -- --coverage
 
 ---
 
-**The CLI provides the efficient foundation for Foreman skills!**
+**The CLI provides the efficient foundation for Ralph-dev skills!**
