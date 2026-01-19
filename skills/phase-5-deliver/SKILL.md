@@ -29,8 +29,6 @@ Invoked by dev-orchestrator as Phase 5, after Phase 3 (Implement) completes all 
 
 **IMPORTANT:** This skill requires the Ralph-dev CLI. It will build automatically on first use.
 
-> **重要：**此技能需要 Ralph-dev CLI。首次使用时将自动构建。
-
 ```bash
 # Bootstrap CLI - runs automatically, builds if needed
 source ${CLAUDE_PLUGIN_ROOT}/shared/bootstrap-cli.sh

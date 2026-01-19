@@ -11,8 +11,6 @@ user-invocable: false
 
 Read the PRD and break it down into atomic tasks (each <30 minutes), create modular markdown files using CLI, and get user approval before proceeding to implementation.
 
-读取 PRD 并将其分解为原子任务（每个 <30 分钟），使用 CLI 创建模块化 markdown 文件，在继续实施前获得用户批准。
-
 ## When to Use
 
 Invoked by dev-orchestrator as Phase 2, after Phase 1 (Clarify) completes.
@@ -27,8 +25,6 @@ Invoked by dev-orchestrator as Phase 2, after Phase 1 (Clarify) completes.
 ### Step 0: Initialize CLI (Automatic)
 
 **IMPORTANT:** This skill requires the Ralph-dev CLI. It will build automatically on first use.
-
-> **重要：**此技能需要 Ralph-dev CLI。首次使用时将自动构建。
 
 ```bash
 # Bootstrap CLI - runs automatically, builds if needed
@@ -88,8 +84,6 @@ For each user story or requirement, create 1-3 atomic tasks.
 
 For each task, create task files using the ralph-dev CLI with **JSON output and error handling**:
 
-> 对于每个任务，使用ralph-dev CLI创建任务文件，并使用**JSON输出和错误处理**：
-
 ```bash
 # Initialize tasks directory and index with JSON output
 INIT_RESULT=$(ralph-dev tasks init \
@@ -141,8 +135,6 @@ fi
 ```
 
 **Best Practice: Use batch operations for better performance**
-
-> **最佳实践：使用批量操作以获得更好的性能**
 
 ```bash
 # Alternative: Create multiple tasks in a batch operation (10x faster)
@@ -266,8 +258,6 @@ Do you approve this task breakdown?
 
 Before asking, analyze task breakdown quality to determine which option to recommend:
 
-> 在询问前，分析任务分解质量以确定推荐哪个选项：
-
 ```bash
 # Analyze task breakdown quality using JSON output
 TASKS_JSON=$(ralph-dev tasks list --json)
@@ -350,8 +340,6 @@ Use AskUserQuestion tool with proper JSON structure:
 - ✅ Clear descriptions explaining what happens next
 
 ### Step 7: Handle User Response (with Error Handling)
-
-> ### 第7步：处理用户响应（带错误处理）
 
 ```bash
 USER_RESPONSE="$ANSWER"

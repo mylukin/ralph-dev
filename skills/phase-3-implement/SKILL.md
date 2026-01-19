@@ -11,8 +11,6 @@ user-invocable: false
 
 Autonomously implement all tasks using TDD workflow, spawning fresh agents for each task, with automatic error recovery through Phase 4 healing.
 
-使用 TDD 工作流自主实现所有任务，为每个任务生成新的 agent，通过 Phase 4 自愈进行自动错误恢复。
-
 ## When to Use
 
 Invoked by dev-orchestrator as Phase 3, after Phase 2 (Breakdown) completes and user approves task plan.
@@ -29,8 +27,6 @@ Invoked by dev-orchestrator as Phase 3, after Phase 2 (Breakdown) completes and 
 
 **IMPORTANT:** This skill requires the Ralph-dev CLI. It will build automatically on first use.
 
-> **重要：**此技能需要 Ralph-dev CLI。首次使用时将自动构建。
-
 ```bash
 # Bootstrap CLI - runs automatically, builds if needed
 source ${CLAUDE_PLUGIN_ROOT}/shared/bootstrap-cli.sh
@@ -43,8 +39,6 @@ echo ""
 ### Step 1: Initialize Implementation Loop (with JSON parsing)
 
 **CRITICAL: Verify total task count BEFORE starting loop.**
-
-> **关键：在开始循环前验证任务总数。**
 
 ```bash
 # Get total task count from index using JSON output

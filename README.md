@@ -429,9 +429,7 @@ fi
 ```
 
 **Documentation**:
-- 📘 [CLI Best Practices Guide](skills/CLI_BEST_PRACTICES.md)
 - 📋 [CLI Improvements Reference](CLI_IMPROVEMENTS.md)
-- 📝 [Documentation Updates Summary](DOCUMENTATION_UPDATES.md)
 
 ## License
 

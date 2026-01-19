@@ -11,8 +11,6 @@ user-invocable: false
 
 Systematically investigate and fix implementation errors using root cause analysis. NO FIXES WITHOUT INVESTIGATION FIRST.
 
-使用根本原因分析系统地调查和修复实现错误。未经调查不得进行修复。
-
 ## When to Use
 
 Invoked by phase-3-implement when a task implementation fails.
@@ -24,8 +22,6 @@ NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST
 ```
 
 If you haven't completed Phase 1 (Root Cause Investigation), you CANNOT propose fixes.
-
-> 如果你没有完成第 1 阶段（根本原因调查），你不能提出修复方案。
 
 ## Input
 
