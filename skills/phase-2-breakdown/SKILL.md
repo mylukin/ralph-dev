@@ -35,7 +35,63 @@ echo "✓ CLI initialized"
 echo ""
 ```
 
-### Step 1: Read PRD
+### Step 1: Verify .ralph-dev Directory is Gitignored
+
+**SAFETY CHECK:** Prevent accidental commits of state files.
+
+```bash
+echo "🔒 Verifying .ralph-dev directory safety..."
+echo ""
+
+# Use git check-ignore to respect all gitignore levels (local, global, system)
+if ! git check-ignore -q .ralph-dev 2>/dev/null; then
+  echo "⚠️  .ralph-dev/ is NOT in gitignore"
+  echo "   This directory contains temporary state files that should not be committed."
+  echo ""
+  echo "🔧 Fixing: Adding .ralph-dev/ to .gitignore..."
+
+  # Add to .gitignore
+  echo "" >> .gitignore
+  echo "# Ralph-dev temporary files (auto-generated)" >> .gitignore
+  echo ".ralph-dev/state.json" >> .gitignore
+  echo ".ralph-dev/progress.log" >> .gitignore
+  echo ".ralph-dev/debug.log" >> .gitignore
+  echo "" >> .gitignore
+  echo "# Ralph-dev documentation (commit these)" >> .gitignore
+  echo "!.ralph-dev/prd.md" >> .gitignore
+  echo "!.ralph-dev/tasks/" >> .gitignore
+
+  # Commit the fix immediately
+  git add .gitignore
+  git commit -m "chore: add .ralph-dev temporary files to gitignore
+
+Prevents accidental commits of:
+- state.json (workflow state)
+- progress.log (audit trail)
+- debug.log (error logs)
+
+Keeps documentation:
+- prd.md (requirements)
+- tasks/ (task definitions)
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+
+  COMMIT_STATUS=$?
+
+  if [ $COMMIT_STATUS -eq 0 ]; then
+    echo "✅ .gitignore updated and committed"
+  else
+    echo "❌ Failed to commit .gitignore update"
+    echo "   Please add .ralph-dev/ to .gitignore manually"
+    exit 1
+  fi
+else
+  echo "✅ .ralph-dev/ is properly gitignored"
+fi
+echo ""
+```
+
+### Step 2: Read PRD
 
 ```bash
 # Read the PRD generated in Phase 1

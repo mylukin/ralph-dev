@@ -332,7 +332,60 @@ fi
 echo ""
 ```
 
-### Step 6: Final Summary
+### Step 6: Workspace Cleanup (Optional)
+
+**AUTO-CLEANUP:** Remove temporary files while preserving documentation.
+
+```bash
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🧹 Workspace Cleanup"
+echo ""
+
+# Check if auto-cleanup is enabled (from CLAUDE.md or default)
+AUTO_CLEANUP=${RALPH_DEV_AUTO_CLEANUP:-"ask"}
+
+if [ "$AUTO_CLEANUP" = "true" ]; then
+  CLEANUP_CHOICE="yes"
+elif [ "$AUTO_CLEANUP" = "false" ]; then
+  CLEANUP_CHOICE="no"
+else
+  # Ask user
+  echo "The following temporary files can be cleaned up:"
+  echo "  • .ralph-dev/state.json (workflow state)"
+  echo "  • .ralph-dev/progress.log (audit trail)"
+  echo "  • .ralph-dev/debug.log (error logs)"
+  echo ""
+  echo "The following will be KEPT for documentation:"
+  echo "  ✓ .ralph-dev/prd.md (requirements)"
+  echo "  ✓ .ralph-dev/tasks/ (task definitions)"
+  echo ""
+
+  read -p "Clean up temporary files? (y/n): " CLEANUP_INPUT
+  CLEANUP_CHOICE=$(echo "$CLEANUP_INPUT" | tr '[:upper:]' '[:lower:]')
+fi
+
+if [ "$CLEANUP_CHOICE" = "y" ] || [ "$CLEANUP_CHOICE" = "yes" ]; then
+  echo ""
+  echo "🗑️  Removing temporary files..."
+
+  # Remove temporary state files
+  rm -f .ralph-dev/state.json
+  rm -f .ralph-dev/progress.log
+  rm -f .ralph-dev/debug.log
+
+  echo "✅ Cleanup complete"
+  echo "   Removed: state.json, progress.log, debug.log"
+  echo "   Preserved: prd.md, tasks/"
+else
+  echo ""
+  echo "⏭️  Skipping cleanup"
+  echo "   Temporary files preserved in .ralph-dev/"
+  echo "   Clean manually later: rm .ralph-dev/{state.json,progress.log,debug.log}"
+fi
+echo ""
+```
+
+### Step 7: Final Summary
 
 ```bash
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -360,7 +413,7 @@ echo "🎉 Ralph-dev workflow complete!"
 echo ""
 ```
 
-### Step 7: Update State
+### Step 8: Update State
 
 ```bash
 # Update state to complete

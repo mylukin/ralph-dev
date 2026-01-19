@@ -36,7 +36,114 @@ echo "✓ CLI initialized"
 echo ""
 ```
 
-### Step 1: Initialize Implementation Loop (with JSON parsing)
+### Step 1: Verify Baseline Tests (Clean Starting Point)
+
+**SAFETY CHECK:** Ensure all tests pass before starting implementation.
+
+```bash
+# Check if baseline verification is disabled via configuration
+if [ "${RALPH_DEV_SKIP_BASELINE:-false}" = "true" ]; then
+  echo "⏭️  Skipping baseline test verification (RALPH_DEV_SKIP_BASELINE=true)"
+  echo ""
+else
+  echo "🧪 Verifying baseline tests..."
+  echo ""
+
+  # Detect test command from language configuration
+  LANG_CONFIG=$(ralph-dev tasks list --json 2>/dev/null | jq -r '.metadata.languageConfig // empty')
+
+if [ -z "$LANG_CONFIG" ]; then
+  echo "⚠️  No language configuration found. Running detection..."
+  DETECT_RESULT=$(ralph-dev detect --json 2>&1)
+
+  if echo "$DETECT_RESULT" | jq -e '.success == true' > /dev/null 2>&1; then
+    LANG_CONFIG=$(echo "$DETECT_RESULT" | jq -r '.data')
+  else
+    echo "❌ Language detection failed"
+    echo "   Cannot determine test command automatically"
+    echo ""
+    echo "Skipping baseline test verification."
+    echo "⚠️  WARNING: Starting implementation without verifying clean baseline"
+    echo ""
+  fi
+fi
+
+if [ -n "$LANG_CONFIG" ]; then
+  # Extract test command from verify commands
+  TEST_CMD=$(echo "$LANG_CONFIG" | jq -r '.verifyCommands[]? | select(contains("test"))' | head -1)
+
+  if [ -z "$TEST_CMD" ]; then
+    echo "⚠️  No test command configured for this language"
+    echo "   Skipping baseline verification"
+    echo ""
+  else
+    echo "📋 Detected test command: $TEST_CMD"
+    echo ""
+    echo "Running baseline tests..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # Run tests and capture output
+    TEST_OUTPUT=$(eval "$TEST_CMD" 2>&1)
+    TEST_STATUS=$?
+
+    # Show full output
+    echo "$TEST_OUTPUT"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    if [ $TEST_STATUS -eq 0 ]; then
+      echo "✅ Baseline tests PASSED"
+      echo "   All tests passing before implementation starts"
+      echo "   Clean starting point verified"
+    else
+      echo "❌ Baseline tests FAILED"
+      echo "   Exit code: $TEST_STATUS"
+      echo ""
+      echo "⚠️  WARNING: Tests are failing BEFORE implementation!"
+      echo "   This indicates existing bugs in the codebase."
+      echo ""
+      echo "Options:"
+      echo "  A) Fix failing tests first, then resume ralph-dev"
+      echo "  B) Continue anyway (not recommended - hard to track new vs old failures)"
+      echo "  C) Cancel ralph-dev"
+      echo ""
+
+      # Ask user what to do
+      read -p "Choose option (A/B/C): " BASELINE_CHOICE
+
+      case "$BASELINE_CHOICE" in
+        A|a)
+          echo ""
+          echo "⏸️  Paused for fixing baseline tests"
+          echo "   Fix the failing tests, then resume with: /ralph-dev resume"
+          ralph-dev state update --phase implement --json > /dev/null
+          exit 0
+          ;;
+        B|b)
+          echo ""
+          echo "⚠️  Continuing with failing baseline"
+          echo "   This may make it difficult to distinguish new failures from old ones"
+          echo ""
+          ;;
+        C|c)
+          echo ""
+          echo "❌ Ralph-dev cancelled by user"
+          ralph-dev state clear --json > /dev/null
+          exit 1
+          ;;
+        *)
+          echo "Invalid choice. Cancelling for safety."
+          exit 1
+          ;;
+      esac
+    fi
+  fi
+fi
+fi
+echo ""
+```
+
+### Step 2: Initialize Implementation Loop (with JSON parsing)
 
 **CRITICAL: Verify total task count BEFORE starting loop.**
 

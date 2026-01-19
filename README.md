@@ -59,6 +59,12 @@ When tasks fail, automatically:
 - Re-runs verification commands
 - Retries up to 3 times before escalating
 
+### Safety Features
+Inspired by [Superpowers](https://github.com/coleam00/superpowers):
+1. **Gitignore Verification** - Automatically ensures `.ralph-dev/` is gitignored before creating files
+2. **Baseline Test Verification** - Confirms all tests pass before starting implementation
+3. **Auto-Cleanup** - Removes temporary files after delivery while preserving documentation
+
 ### Two-Stage Code Review
 Before creating PRs:
 1. **Spec Compliance** - Validates acceptance criteria are met
@@ -316,6 +322,36 @@ For each task:
 
 ## Configuration
 
+Ralph-dev can be configured through environment variables or `.claude/CLAUDE.md` file.
+
+### Environment Variables
+
+```bash
+# Auto-cleanup after delivery (default: ask)
+export RALPH_DEV_AUTO_CLEANUP=true   # Auto-cleanup temporary files
+export RALPH_DEV_AUTO_CLEANUP=false  # Keep all files
+export RALPH_DEV_AUTO_CLEANUP=ask    # Ask user (default)
+
+# Baseline test verification (default: false)
+export RALPH_DEV_SKIP_BASELINE=true  # Skip baseline tests
+export RALPH_DEV_SKIP_BASELINE=false # Run baseline tests (recommended)
+```
+
+### CLAUDE.md Configuration
+
+Add to `.claude/CLAUDE.md` for project-specific settings:
+
+```markdown
+# Ralph-dev Configuration
+
+```bash
+export RALPH_DEV_AUTO_CLEANUP=true
+export RALPH_DEV_SKIP_BASELINE=false
+```
+```
+
+See [Configuration Guide](docs/CONFIGURATION.md) for details.
+
 ### Git Configuration
 Add `.ralph-dev/` directory to your `.gitignore`:
 ```
@@ -329,6 +365,8 @@ Commit task definitions and PRD:
 !.ralph-dev/prd.md
 !.ralph-dev/tasks/
 ```
+
+**Note:** Ralph-dev automatically verifies and fixes gitignore configuration in Phase 2.
 
 ## Troubleshooting
 

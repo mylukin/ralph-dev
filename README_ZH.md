@@ -59,6 +59,12 @@ Ralph-dev 将引导你完成：
 - 重新运行验证命令
 - 在升级前最多重试 3 次
 
+### 安全功能
+受 [Superpowers](https://github.com/coleam00/superpowers) 启发：
+1. **Gitignore 验证** - 在创建文件前自动确保 `.ralph-dev/` 被 gitignore
+2. **基线测试验证** - 在开始实现前确认所有测试通过
+3. **自动清理** - 交付后删除临时文件，同时保留文档
+
 ### 两阶段代码审查
 在创建 PR 前：
 1. **规范合规性** - 验证是否满足验收标准
@@ -316,6 +322,36 @@ Ralph-dev 自动检测项目的语言并配置验证命令：
 
 ## 配置
 
+Ralph-dev 可以通过环境变量或 `.claude/CLAUDE.md` 文件进行配置。
+
+### 环境变量
+
+```bash
+# 交付后自动清理（默认：ask）
+export RALPH_DEV_AUTO_CLEANUP=true   # 自动清理临时文件
+export RALPH_DEV_AUTO_CLEANUP=false  # 保留所有文件
+export RALPH_DEV_AUTO_CLEANUP=ask    # 询问用户（默认）
+
+# 基线测试验证（默认：false）
+export RALPH_DEV_SKIP_BASELINE=true  # 跳过基线测试
+export RALPH_DEV_SKIP_BASELINE=false # 运行基线测试（推荐）
+```
+
+### CLAUDE.md 配置
+
+在 `.claude/CLAUDE.md` 中添加项目特定设置：
+
+```markdown
+# Ralph-dev 配置
+
+```bash
+export RALPH_DEV_AUTO_CLEANUP=true
+export RALPH_DEV_SKIP_BASELINE=false
+```
+```
+
+详见[配置指南](docs/CONFIGURATION.md)。
+
 ### Git 配置
 将 `.ralph-dev/` 目录添加到 `.gitignore`：
 ```
@@ -329,6 +365,8 @@ Ralph-dev 自动检测项目的语言并配置验证命令：
 !.ralph-dev/prd.md
 !.ralph-dev/tasks/
 ```
+
+**注意：** Ralph-dev 在 Phase 2 中自动验证并修复 gitignore 配置。
 
 ## 故障排除
 
