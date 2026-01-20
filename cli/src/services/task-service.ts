@@ -307,6 +307,12 @@ export class TaskService implements ITaskService {
     // Save updated task
     await this.taskRepository.save(task);
 
+    // Update state to clear current task (task is no longer active)
+    const state = await this.stateRepository.get();
+    if (state && state.currentTask === taskId) {
+      await this.stateRepository.update({ currentTask: undefined });
+    }
+
     this.logger.info(`Task completed: ${taskId}`);
     return task;
   }
@@ -328,6 +334,12 @@ export class TaskService implements ITaskService {
 
     // Save updated task
     await this.taskRepository.save(task);
+
+    // Update state to clear current task (task is no longer active)
+    const state = await this.stateRepository.get();
+    if (state && state.currentTask === taskId) {
+      await this.stateRepository.update({ currentTask: undefined });
+    }
 
     this.logger.error(`Task failed: ${taskId}`, { reason });
     return task;
