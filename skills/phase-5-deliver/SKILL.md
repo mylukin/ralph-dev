@@ -137,7 +137,8 @@ else
     echo ""
 
     # Execute command and capture output
-    CMD_OUTPUT=$(eval "$cmd" 2>&1)
+    # IMPORTANT: Set CI=true to prevent interactive/watch mode which can hang the process
+    CMD_OUTPUT=$(CI=true eval "$cmd" 2>&1)
     CMD_STATUS=$?
 
     # Show full output

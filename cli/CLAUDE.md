@@ -10,7 +10,7 @@ Ralph-dev CLI is a TypeScript command-line tool for managing AI agent workflow s
 - Zero-config: Works without setup, creates `.ralph-dev/` on first use
 - CLI-first: All operations available via command-line for bash integration
 - JSON output: Every command supports `--json` flag for scripting
-- Workspace isolation: Uses `FOREMAN_WORKSPACE` env var or `process.cwd()`
+- Workspace isolation: Uses `RALPH_DEV_WORKSPACE` env var or `process.cwd()`
 
 ## Development Commands
 
@@ -120,7 +120,7 @@ const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 - Use `vi.stubEnv()` to mock environment variables:
 ```typescript
 beforeEach(() => {
-  vi.stubEnv('FOREMAN_WORKSPACE', '/test/workspace');
+  vi.stubEnv('RALPH_DEV_WORKSPACE', '/test/workspace');
 });
 
 afterEach(() => {
@@ -281,7 +281,7 @@ When implementing features that process agent output, prefer the tool calling fo
 The parser also supports JSON blocks (```json) and legacy YAML blocks (---IMPLEMENTATION RESULT---) for backward compatibility.
 
 ### Environment Variables
-- `FOREMAN_WORKSPACE`: Overrides workspace directory (default: `process.cwd()`)
+- `RALPH_DEV_WORKSPACE`: Overrides workspace directory (default: `process.cwd()`)
 - Used by parent Ralph-dev system to isolate multiple projects
 
 ### Exit Codes (src/core/exit-codes.ts)

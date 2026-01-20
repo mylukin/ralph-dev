@@ -74,7 +74,8 @@ TEST_PATTERN=$(echo "$TASK_JSON" | jq -r '.data.testRequirements.unit.pattern //
 echo "Running: npm test -- $TEST_PATTERN"
 echo ""
 
-REPRO_OUTPUT=$(npm test -- "$TEST_PATTERN" 2>&1)
+# IMPORTANT: Set CI=true to prevent interactive/watch mode which can hang the process
+REPRO_OUTPUT=$(CI=true npm test -- "$TEST_PATTERN" 2>&1)
 REPRO_STATUS=$?
 
 echo "$REPRO_OUTPUT"
@@ -320,7 +321,8 @@ while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
   echo ""
 
   # Run tests to confirm failure
-  npm test -- "$TEST_PATTERN" 2>&1
+  # IMPORTANT: Set CI=true to prevent interactive/watch mode which can hang the process
+  CI=true npm test -- "$TEST_PATTERN" 2>&1
   TEST_STATUS=$?
 
   if [ $TEST_STATUS -eq 0 ]; then
@@ -377,7 +379,8 @@ while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
   echo "Running: npm test -- $TEST_PATTERN"
   echo ""
 
-  VERIFY_OUTPUT=$(npm test -- "$TEST_PATTERN" 2>&1)
+  # IMPORTANT: Set CI=true to prevent interactive/watch mode which can hang the process
+  VERIFY_OUTPUT=$(CI=true npm test -- "$TEST_PATTERN" 2>&1)
   VERIFY_STATUS=$?
 
   echo "$VERIFY_OUTPUT"

@@ -10,7 +10,7 @@ import { version } from '../package.json';
 const program = new Command();
 
 // Get workspace directory (default to current directory)
-const workspaceDir = process.env.FOREMAN_WORKSPACE || process.cwd();
+const workspaceDir = process.env.RALPH_DEV_WORKSPACE || process.cwd();
 
 program
   .name('ralph-dev')

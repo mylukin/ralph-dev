@@ -83,7 +83,8 @@ if [ -n "$LANG_CONFIG" ]; then
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # Run tests and capture output
-    TEST_OUTPUT=$(eval "$TEST_CMD" 2>&1)
+    # IMPORTANT: Set CI=true to prevent interactive/watch mode which can hang the process
+    TEST_OUTPUT=$(CI=true eval "$TEST_CMD" 2>&1)
     TEST_STATUS=$?
 
     # Show full output

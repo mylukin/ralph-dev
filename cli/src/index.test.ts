@@ -20,21 +20,21 @@ describe('index.ts - CLI entry point', () => {
     }).not.toThrow();
   });
 
-  it('should use FOREMAN_WORKSPACE env var when set', () => {
+  it('should use RALPH_DEV_WORKSPACE env var when set', () => {
     const testWorkspace = '/test/workspace';
-    process.env.FOREMAN_WORKSPACE = testWorkspace;
+    process.env.RALPH_DEV_WORKSPACE = testWorkspace;
 
     // The workspace dir should be read from env
-    expect(process.env.FOREMAN_WORKSPACE).toBe(testWorkspace);
+    expect(process.env.RALPH_DEV_WORKSPACE).toBe(testWorkspace);
 
-    delete process.env.FOREMAN_WORKSPACE;
+    delete process.env.RALPH_DEV_WORKSPACE;
   });
 
-  it('should use process.cwd() when FOREMAN_WORKSPACE is not set', () => {
-    delete process.env.FOREMAN_WORKSPACE;
+  it('should use process.cwd() when RALPH_DEV_WORKSPACE is not set', () => {
+    delete process.env.RALPH_DEV_WORKSPACE;
 
     // When env var is not set, it should use cwd
-    expect(process.env.FOREMAN_WORKSPACE).toBeUndefined();
+    expect(process.env.RALPH_DEV_WORKSPACE).toBeUndefined();
     expect(process.cwd()).toBeTruthy();
   });
 
