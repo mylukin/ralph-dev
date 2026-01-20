@@ -1,22 +1,42 @@
 # Ralph-dev System Architecture
 
-Comprehensive architecture documentation with text-based flowcharts for the autonomous end-to-end development system.
+Comprehensive architecture documentation for the autonomous end-to-end development system.
+> 自主端到端开发系统的综合架构文档。
 
 ---
 
 ## Table of Contents
 
-1. [High-Level System Overview](#1-high-level-system-overview)
-2. [5-Phase Workflow State Machine](#2-5-phase-workflow-state-machine)
-3. [CLI Layered Architecture](#3-cli-layered-architecture)
-4. [Data Flow Diagrams](#4-data-flow-diagrams)
-5. [Directory Structure](#5-directory-structure)
-6. [Component Interaction Diagrams](#6-component-interaction-diagrams)
-7. [Error Handling & Recovery](#7-error-handling--recovery)
+1. [Overview](#1-overview)
+2. [System Architecture](#2-system-architecture)
+3. [5-Phase Workflow](#3-5-phase-workflow)
+4. [CLI Layered Architecture](#4-cli-layered-architecture)
+5. [Skills System](#5-skills-system)
+6. [Plugin Infrastructure](#6-plugin-infrastructure)
+7. [Data Flow](#7-data-flow)
+8. [Directory Structure](#8-directory-structure)
+9. [Error Handling & Recovery](#9-error-handling--recovery)
+10. [Technology Stack](#10-technology-stack)
 
 ---
 
-## 1. High-Level System Overview
+## 1. Overview
+
+Ralph-dev is an **autonomous end-to-end development system** that transforms natural language requirements into production-ready, tested code through a 5-phase workflow.
+> Ralph-dev 是一个**自主端到端开发系统**，通过 5 阶段工作流将自然语言需求转换为生产就绪的测试代码。
+
+**Key Characteristics:**
+- **State-Driven**: All progress persisted via CLI, survives context compression
+- **TDD Enforcement**: Write failing tests first, then implement
+- **Fresh Agent Context**: Each task uses isolated subagent
+- **Self-Healing**: Automatic error recovery with circuit breaker
+- **Multi-Language**: Supports TypeScript, Python, Go, Rust, Java, and more
+
+---
+
+## 2. System Architecture
+
+### High-Level Component Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -53,26 +73,28 @@ Comprehensive architecture documentation with text-based flowcharts for the auto
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Descriptions
+### Component Responsibilities
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| Claude Code | Host IDE | AI assistant runtime environment |
-| Plugin Layer | `.claude-plugin/` | Session hooks, CLI bootstrap |
-| Skills Layer | `skills/` | Phase-specific AI workflows |
-| CLI Tool | `cli/` | State & task management |
-| Workspace | `.ralph-dev/` | Persistent project state |
+| Component | Location | Responsibility |
+|-----------|----------|----------------|
+| **Claude Code** | Host IDE | AI assistant runtime environment |
+| **Plugin Layer** | `.claude-plugin/` | Session hooks, CLI bootstrap, marketplace metadata |
+| **Skills Layer** | `skills/` | Phase-specific AI agent workflows |
+| **CLI Tool** | `cli/` | State & task management, language detection |
+| **Shared** | `shared/` | Bootstrap scripts, CLI fallback utilities |
+| **Commands** | `commands/` | User-invocable slash commands |
+| **Workspace** | `.ralph-dev/` | Runtime state, tasks, PRD, logs |
 
 ---
 
-## 2. 5-Phase Workflow State Machine
+## 3. 5-Phase Workflow
 
-### Main Workflow Flow
+### Workflow State Machine
 
 ```
-                        ┌──────────────────────────────────────────────────────┐
-                        │              RALPH-DEV WORKFLOW                      │
-                        └──────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         RALPH-DEV WORKFLOW                                  │
+└────────────────────────────────────────────────────────────────────────────┘
 
      ┌─────────┐      ┌───────────┐      ┌───────────┐      ┌─────────┐      ┌──────────┐
      │ CLARIFY │─────►│ BREAKDOWN │─────►│ IMPLEMENT │─────►│ DELIVER │─────►│ COMPLETE │
@@ -86,318 +108,111 @@ Comprehensive architecture documentation with text-based flowcharts for the auto
     └──────────┘     └──────────┘        └─────────┘      └──────────┘
 ```
 
-### State Transition Rules
+### Phase Details
+
+| Phase | Skill | Input | Output | Interaction |
+|-------|-------|-------|--------|-------------|
+| **1. CLARIFY** | `phase-1-clarify` | User requirement | `.ralph-dev/prd.md` | Interactive (AskUserQuestion) |
+| **2. BREAKDOWN** | `phase-2-breakdown` | `prd.md` | `.ralph-dev/tasks/*.md` | User approval required |
+| **3. IMPLEMENT** | `phase-3-implement` | Task files | Working code + tests | Autonomous (fresh agents) |
+| **4. HEAL** | `phase-4-heal` | Error context | Fixed code | On-demand (invoked by Phase 3) |
+| **5. DELIVER** | `phase-5-deliver` | Completed code | Git commit + PR | Autonomous |
+
+### State Transitions
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                     VALID STATE TRANSITIONS                             │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│    ┌─────────┐                                                          │
-│    │ clarify │──────────────────┐                                       │
-│    └─────────┘                  │                                       │
-│         │                       ▼                                       │
-│         │              ┌────────────┐                                   │
-│         └─────────────►│ breakdown  │                                   │
-│                        └────────────┘                                   │
-│                              │                                          │
-│                              ▼                                          │
-│                       ┌────────────┐                                    │
-│              ┌───────►│ implement  │◄───────┐                           │
-│              │        └────────────┘        │                           │
-│              │         │         │          │                           │
-│              │    error│         │all done  │                           │
-│              │         ▼         │          │                           │
-│              │    ┌─────────┐    │          │                           │
-│              │    │  heal   │────┘          │                           │
-│              │    └─────────┘               │                           │
-│              │         │ fixed              │                           │
-│              └─────────┘                    │                           │
-│                                             ▼                           │
-│                                      ┌────────────┐                     │
-│                                      │  deliver   │                     │
-│                                      └────────────┘                     │
-│                                             │                           │
-│                                             ▼                           │
-│                                      ┌────────────┐                     │
-│                                      │  complete  │                     │
-│                                      └────────────┘                     │
+│    clarify ──────────────► breakdown                                    │
+│                                 │                                       │
+│                                 ▼                                       │
+│                            implement ◄───────────┐                      │
+│                             │     │              │                      │
+│                        error│     │all done      │                      │
+│                             ▼     │              │                      │
+│                           heal ───┘ (fixed)      │                      │
+│                             │                    │                      │
+│                             └─── (5 failures) ───┘                      │
+│                                   (skip task)                           │
 │                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Phase Details
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ PHASE 1: CLARIFY                                                        │
-├─────────────────────────────────────────────────────────────────────────┤
+│                           implement ──────────► deliver                 │
+│                                                    │                    │
+│                                                    ▼                    │
+│                                                complete                 │
 │                                                                         │
-│   User Input                                                            │
-│       │                                                                 │
-│       ▼                                                                 │
-│   ┌──────────────────┐                                                  │
-│   │ Analyze Request  │                                                  │
-│   └──────────────────┘                                                  │
-│       │                                                                 │
-│       ▼                                                                 │
-│   ┌──────────────────┐     ┌──────────────────┐                         │
-│   │ Generate 3-5     │────►│ AskUserQuestion  │                         │
-│   │ Questions        │     │ (collect answers)│                         │
-│   └──────────────────┘     └──────────────────┘                         │
-│                                   │                                     │
-│                                   ▼                                     │
-│                            ┌──────────────────┐                         │
-│                            │ Generate PRD     │                         │
-│                            └──────────────────┘                         │
-│                                   │                                     │
-│                                   ▼                                     │
-│                            ┌──────────────────┐                         │
-│                            │ .ralph-dev/prd.md│                         │
-│                            └──────────────────┘                         │
-│                                                                         │
-│   Output: Product Requirements Document                                 │
-│   Transition: → breakdown                                               │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│ PHASE 2: BREAKDOWN                                                      │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   .ralph-dev/prd.md                                                     │
-│       │                                                                 │
-│       ▼                                                                 │
-│   ┌──────────────────┐                                                  │
-│   │ Parse PRD        │                                                  │
-│   │ (requirements)   │                                                  │
-│   └──────────────────┘                                                  │
-│       │                                                                 │
-│       ▼                                                                 │
-│   ┌──────────────────┐     ┌──────────────────┐                         │
-│   │ For each         │────►│ ralph-dev tasks  │                         │
-│   │ requirement      │     │ create <id> ...  │                         │
-│   └──────────────────┘     └──────────────────┘                         │
-│                                   │                                     │
-│                                   ▼                                     │
-│                            ┌──────────────────┐                         │
-│                            │ .ralph-dev/tasks/│                         │
-│                            │ {module}/{id}.md │                         │
-│                            └──────────────────┘                         │
-│                                   │                                     │
-│                                   ▼                                     │
-│                            ┌──────────────────┐                         │
-│                            │ AskUserQuestion  │                         │
-│                            │ (get approval)   │                         │
-│                            └──────────────────┘                         │
-│                                                                         │
-│   Output: Atomic tasks with dependencies                                │
-│   Transition: → implement (after user approval)                         │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│ PHASE 3: IMPLEMENT                                                      │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │                     IMPLEMENTATION LOOP                          │   │
-│   │                                                                  │   │
-│   │   ┌───────────────────┐                                          │   │
-│   │   │ralph-dev tasks    │                                          │   │
-│   │   │next --json        │◄─────────────────────────────────┐       │   │
-│   │   └───────────────────┘                                  │       │   │
-│   │          │                                               │       │   │
-│   │          │ task found                                    │       │   │
-│   │          ▼                                               │       │   │
-│   │   ┌───────────────────┐                                  │       │   │
-│   │   │ralph-dev tasks    │                                  │       │   │
-│   │   │start <id>         │                                  │       │   │
-│   │   └───────────────────┘                                  │       │   │
-│   │          │                                               │       │   │
-│   │          ▼                                               │       │   │
-│   │   ┌───────────────────┐                                  │       │   │
-│   │   │ Task tool         │ (fresh subagent)                 │       │   │
-│   │   │ - Write tests     │                                  │       │   │
-│   │   │ - Implement code  │                                  │       │   │
-│   │   │ - Verify tests    │                                  │       │   │
-│   │   └───────────────────┘                                  │       │   │
-│   │          │                                               │       │   │
-│   │          ▼                                               │       │   │
-│   │   ┌──────┴──────┐                                        │       │   │
-│   │   │   Result?   │                                        │       │   │
-│   │   └──────┬──────┘                                        │       │   │
-│   │     success│fail                                         │       │   │
-│   │          │  │                                            │       │   │
-│   │          ▼  ▼                                            │       │   │
-│   │   ┌─────────┐ ┌─────────┐                                │       │   │
-│   │   │ tasks   │ │ Invoke  │                                │       │   │
-│   │   │ done    │ │ HEAL    │                                │       │   │
-│   │   │ <id>    │ │ phase   │                                │       │   │
-│   │   └─────────┘ └─────────┘                                │       │   │
-│   │          │         │                                     │       │   │
-│   │          └────┬────┘                                     │       │   │
-│   │               │                                          │       │   │
-│   │               └──────────────────────────────────────────┘       │   │
-│   │                                                                  │   │
-│   │   Exit condition: ralph-dev tasks next → null (no more tasks)    │   │
-│   └──────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-│   Output: Implemented & tested code                                     │
-│   Transition: → deliver (all tasks done)                                │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│ PHASE 4: HEAL                                                           │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   Failed Task + Error                                                   │
-│       │                                                                 │
-│       ▼                                                                 │
-│   ┌──────────────────┐                                                  │
-│   │ 1. INVESTIGATE   │                                                  │
-│   │   - Read error   │                                                  │
-│   │   - Reproduce    │                                                  │
-│   │   - Trace flow   │                                                  │
-│   └──────────────────┘                                                  │
-│       │                                                                 │
-│       ▼                                                                 │
-│   ┌──────────────────┐                                                  │
-│   │ 2. ANALYZE       │                                                  │
-│   │   - Find working │                                                  │
-│   │     examples     │                                                  │
-│   │   - Compare code │                                                  │
-│   └──────────────────┘                                                  │
-│       │                                                                 │
-│       ▼                                                                 │
-│   ┌──────────────────┐     ┌──────────────────┐                         │
-│   │ 3. HYPOTHESIS    │────►│ WebSearch        │                         │
-│   │   - Classify     │     │ (confirm)        │                         │
-│   │     error type   │     └──────────────────┘                         │
-│   └──────────────────┘                                                  │
-│       │                                                                 │
-│       ▼                                                                 │
-│   ┌──────────────────┐                                                  │
-│   │ 4. FIX & VERIFY  │◄────────────────┐                                │
-│   │   - Apply fix    │                 │                                │
-│   │   - Run tests    │                 │ retry (max 3)                  │
-│   └──────────────────┘                 │                                │
-│       │                                │                                │
-│       ▼                                │                                │
-│   ┌──────┴──────┐                      │                                │
-│   │   Pass?     │───────── no ─────────┘                                │
-│   └──────┬──────┘                                                       │
-│          │ yes                                                          │
-│          ▼                                                              │
-│   ┌──────────────────┐                                                  │
-│   │ Return to        │                                                  │
-│   │ IMPLEMENT        │                                                  │
-│   └──────────────────┘                                                  │
-│                                                                         │
-│   Circuit Breaker: 5 consecutive failures → mark task failed, skip      │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│ PHASE 5: DELIVER                                                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   All Tasks Completed                                                   │
-│       │                                                                 │
-│       ▼                                                                 │
-│   ┌──────────────────┐                                                  │
-│   │ QUALITY GATES    │                                                  │
-│   │ ┌──────────────┐ │                                                  │
-│   │ │ npm test     │ │                                                  │
-│   │ ├──────────────┤ │                                                  │
-│   │ │ npm run lint │ │                                                  │
-│   │ ├──────────────┤ │                                                  │
-│   │ │ tsc --noEmit │ │                                                  │
-│   │ ├──────────────┤ │                                                  │
-│   │ │ npm run build│ │                                                  │
-│   │ └──────────────┘ │                                                  │
-│   └──────────────────┘                                                  │
-│       │                                                                 │
-│       │ all pass                                                        │
-│       ▼                                                                 │
-│   ┌──────────────────┐                                                  │
-│   │ CODE REVIEW      │                                                  │
-│   │ - Spec compliance│                                                  │
-│   │ - Code quality   │                                                  │
-│   └──────────────────┘                                                  │
-│       │                                                                 │
-│       ▼                                                                 │
-│   ┌──────────────────┐     ┌──────────────────┐                         │
-│   │ git commit       │────►│ gh pr create     │                         │
-│   └──────────────────┘     └──────────────────┘                         │
-│                                   │                                     │
-│                                   ▼                                     │
-│                            ┌──────────────────┐                         │
-│                            │ PR URL returned  │                         │
-│                            └──────────────────┘                         │
-│                                                                         │
-│   Output: Git commit + Pull Request                                     │
-│   Transition: → complete                                                │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. CLI Layered Architecture
+## 4. CLI Layered Architecture
 
 ### Layer Dependency Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                     CLI LAYERED ARCHITECTURE                            │
+│                         (cli/src/)                                      │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
 │   │                    COMMANDS LAYER                                │   │
-│   │                    (cli/src/commands/)                           │   │
+│   │                    (commands/)                                   │   │
 │   │                                                                  │   │
-│   │   ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │   │
-│   │   │state.ts │ │tasks.ts │ │detect.ts│ │ init.ts │ │status.ts│  │   │
-│   │   └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘  │   │
+│   │   ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ │   │
+│   │   │state.ts │ │tasks.ts │ │detect.ts│ │ init.ts │ │ status.ts│ │   │
+│   │   └─────────┘ └─────────┘ └─────────┘ └─────────┘ └──────────┘ │   │
+│   │   ┌────────────────┐ ┌────────────────┐                        │   │
+│   │   │circuit-breaker │ │   detect-ai    │                        │   │
+│   │   └────────────────┘ └────────────────┘                        │   │
 │   │                                                                  │   │
 │   │   Responsibility: Parse args, call services, format output       │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
-│                              │                                          │
 │                              │ uses                                     │
 │                              ▼                                          │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
 │   │                   SERVICES LAYER                                 │   │
-│   │                   (cli/src/services/)                            │   │
+│   │                   (services/)                                    │   │
 │   │                                                                  │   │
 │   │   ┌────────────────┐  ┌────────────────┐  ┌─────────────────┐   │   │
-│   │   │ StateService   │  │ TaskService    │  │ StatusService   │   │   │
-│   │   │ - updateState  │  │ - lifecycle    │  │ - summary       │   │   │
-│   │   │ - validation   │  │ - dependencies │  │ - progress      │   │   │
+│   │   │  TaskService   │  │  StateService  │  │  StatusService  │   │   │
 │   │   └────────────────┘  └────────────────┘  └─────────────────┘   │   │
+│   │   ┌────────────────────┐  ┌────────────────────┐                │   │
+│   │   │  DetectionService  │  │   ContextService   │                │   │
+│   │   └────────────────────┘  └────────────────────┘                │   │
 │   │                                                                  │   │
 │   │   Responsibility: Business logic, validation, orchestration      │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
-│                              │                                          │
 │                              │ uses                                     │
 │                              ▼                                          │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
 │   │                 REPOSITORIES LAYER                               │   │
-│   │                 (cli/src/repositories/)                          │   │
+│   │                 (repositories/)                                  │   │
 │   │                                                                  │   │
-│   │   ┌──────────────────────┐  ┌──────────────────────┐            │   │
-│   │   │ IStateRepository     │  │ ITaskRepository      │            │   │
-│   │   │ (interface)          │  │ (interface)          │            │   │
-│   │   │   │                  │  │   │                  │            │   │
-│   │   │   ▼                  │  │   ▼                  │            │   │
-│   │   │ StateRepository      │  │ TaskRepository       │            │   │
-│   │   │ .service.ts          │  │ .service.ts          │            │   │
-│   │   └──────────────────────┘  └──────────────────────┘            │   │
+│   │   ┌─────────────────────┐  ┌─────────────────────┐              │   │
+│   │   │  ITaskRepository    │  │  IStateRepository   │              │   │
+│   │   │         │           │  │         │           │              │   │
+│   │   │         ▼           │  │         ▼           │              │   │
+│   │   │  FileSystemTask     │  │  FileSystemState    │              │   │
+│   │   │  Repository.service │  │  Repository.service │              │   │
+│   │   └─────────────────────┘  └─────────────────────┘              │   │
+│   │   ┌─────────────────────┐                                       │   │
+│   │   │  IIndexRepository   │                                       │   │
+│   │   │         │           │                                       │   │
+│   │   │         ▼           │                                       │   │
+│   │   │  FileSystemIndex    │                                       │   │
+│   │   │  Repository.service │                                       │   │
+│   │   └─────────────────────┘                                       │   │
 │   │                                                                  │   │
 │   │   Responsibility: Data access abstraction                        │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
-│                              │                                          │
 │                              │ uses                                     │
 │                              ▼                                          │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
 │   │                    DOMAIN LAYER                                  │   │
-│   │                    (cli/src/domain/)                             │   │
+│   │                    (domain/)                                     │   │
 │   │                                                                  │   │
 │   │   ┌──────────────────────┐  ┌──────────────────────┐            │   │
 │   │   │ State (Entity)       │  │ Task (Entity)        │            │   │
@@ -405,29 +220,52 @@ Comprehensive architecture documentation with text-based flowcharts for the auto
 │   │   │ - canTransitionTo()  │  │ - isBlocked()        │            │   │
 │   │   │ - getNextAllowed()   │  │ - start()/done()     │            │   │
 │   │   └──────────────────────┘  └──────────────────────┘            │   │
+│   │   ┌──────────────────────┐                                      │   │
+│   │   │ LanguageConfig       │                                      │   │
+│   │   │ - verifyCommands     │                                      │   │
+│   │   └──────────────────────┘                                      │   │
 │   │                                                                  │   │
 │   │   Responsibility: Business rules, invariants, behaviors          │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
-│                              │                                          │
 │                              │ uses                                     │
 │                              ▼                                          │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
 │   │                 INFRASTRUCTURE LAYER                             │   │
-│   │                 (cli/src/infrastructure/)                        │   │
+│   │                 (infrastructure/)                                │   │
 │   │                                                                  │   │
 │   │   ┌──────────────────────────┐  ┌────────────────────────────┐  │   │
-│   │   │ FileSystem.service.ts    │  │ Logger.service.ts          │  │   │
+│   │   │ IFileSystem              │  │ ILogger                    │  │   │
+│   │   │        │                 │  │        │                   │  │   │
+│   │   │        ▼                 │  │        ▼                   │  │   │
+│   │   │ FileSystemService        │  │ ConsoleLogger              │  │   │
 │   │   │ - readFile/writeFile     │  │ - debug/info/warn/error    │  │   │
-│   │   │ - ensureDir/remove       │  │ - logging abstraction      │  │   │
+│   │   │ - ensureDir/remove       │  │                            │  │   │
 │   │   └──────────────────────────┘  └────────────────────────────┘  │   │
 │   │                                                                  │   │
-│   │   Responsibility: File I/O, logging, retry, external systems     │   │
+│   │   Responsibility: File I/O, logging, external systems            │   │
+│   └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐   │
+│   │                    CORE UTILITIES                                │   │
+│   │                    (core/)                                       │   │
+│   │                                                                  │   │
+│   │   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐               │   │
+│   │   │ task-parser │ │ task-writer │ │ exit-codes  │               │   │
+│   │   └─────────────┘ └─────────────┘ └─────────────┘               │   │
+│   │   ┌─────────────────┐ ┌─────────────────┐ ┌─────────────┐       │   │
+│   │   │ circuit-breaker │ │ response-wrapper│ │    retry    │       │   │
+│   │   └─────────────────┘ └─────────────────┘ └─────────────┘       │   │
+│   │   ┌───────────────┐ ┌───────────────────┐ ┌─────────────┐       │   │
+│   │   │ error-handler │ │ structured-output │ │   ci-mode   │       │   │
+│   │   └───────────────┘ └───────────────────┘ └─────────────┘       │   │
+│   │                                                                  │   │
+│   │   Responsibility: Parsing, error handling, cross-cutting utils   │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Dependency Injection
+### Dependency Injection (service-factory.ts)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -435,36 +273,182 @@ Comprehensive architecture documentation with text-based flowcharts for the auto
 │                    (service-factory.ts)                                 │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│   createTaskService(workspaceDir)                                       │
+│   createServices(workspaceDir)                                          │
 │       │                                                                 │
 │       ▼                                                                 │
 │   ┌────────────────────────────────────────────────────────────────┐    │
 │   │                                                                │    │
-│   │   FileSystemService ─────────┐                                 │    │
-│   │         │                    │                                 │    │
-│   │         ▼                    ▼                                 │    │
-│   │   TaskRepository        StateRepository                        │    │
-│   │         │                    │                                 │    │
-│   │         └────────┬───────────┘                                 │    │
-│   │                  ▼                                             │    │
-│   │            TaskService ◄──── Logger                            │    │
-│   │                  │                                             │    │
-│   │                  ▼                                             │    │
-│   │            [returned]                                          │    │
+│   │   ConsoleLogger ────────────────────────────────────┐          │    │
+│   │   FileSystemService ───────────────────────────┐    │          │    │
+│   │         │                                      │    │          │    │
+│   │         ▼                                      │    │          │    │
+│   │   FileSystemTaskRepository ─────────────┐      │    │          │    │
+│   │   FileSystemStateRepository ────────┐   │      │    │          │    │
+│   │   FileSystemIndexRepository ────┐   │   │      │    │          │    │
+│   │                                 │   │   │      │    │          │    │
+│   │                                 ▼   ▼   ▼      ▼    ▼          │    │
+│   │                             ┌─────────────────────────┐        │    │
+│   │                             │    ServiceContainer     │        │    │
+│   │                             │  - taskService          │        │    │
+│   │                             │  - stateService         │        │    │
+│   │                             │  - statusService        │        │    │
+│   │                             │  - detectionService     │        │    │
+│   │                             │  - logger               │        │    │
+│   │                             └─────────────────────────┘        │    │
 │   │                                                                │    │
 │   └────────────────────────────────────────────────────────────────┘    │
 │                                                                         │
-│   Benefits:                                                             │
-│   - Easy to mock for testing                                            │
-│   - Single configuration point                                          │
-│   - Swappable implementations                                           │
+│   Also provides convenience functions:                                  │
+│   - createTaskService(workspaceDir)                                     │
+│   - createStateService(workspaceDir)                                    │
+│   - createStatusService(workspaceDir)                                   │
+│   - createDetectionService(workspaceDir)                                │
+│   - createContextService(workspaceDir)                                  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Architecture Rules
+
+| Layer | DO | DON'T |
+|-------|-----|-------|
+| **Commands** | Parse args, call services, format output | Put business logic, access file system |
+| **Services** | Business logic, coordinate repos | Create own dependencies |
+| **Repositories** | Data persistence, maintain index.json | Expose file paths to services |
+| **Domain** | Behavior methods, enforce invariants | Just be data bags |
+| **Infrastructure** | File I/O, logging, retry logic | Contain business rules |
+
+---
+
+## 5. Skills System
+
+### Skill Structure
+
+Each skill is defined in a `SKILL.md` file with YAML frontmatter:
+
+```yaml
+---
+name: phase-1-clarify
+description: Interactive requirement clarification
+allowed-tools: [Task, Read, Write, Bash]
+user-invocable: true
+---
+
+# Skill Content (Markdown)
+Execution instructions...
+```
+
+### Available Skills
+
+| Skill | Directory | Purpose |
+|-------|-----------|---------|
+| `dev-orchestrator` | `skills/dev-orchestrator/` | Main orchestrator, manages entire workflow |
+| `phase-1-clarify` | `skills/phase-1-clarify/` | Interactive requirement gathering |
+| `phase-2-breakdown` | `skills/phase-2-breakdown/` | Task decomposition from PRD |
+| `phase-3-implement` | `skills/phase-3-implement/` | TDD implementation loop |
+| `phase-4-heal` | `skills/phase-4-heal/` | Error recovery and auto-fix |
+| `phase-5-deliver` | `skills/phase-5-deliver/` | Quality gates, commit, PR |
+| `detect-language` | `skills/detect-language/` | Project language detection |
+
+### Skill Invocation Chain
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    SKILL INVOCATION CHAIN                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   User: /ralph-dev                                                      │
+│         │                                                               │
+│         ▼                                                               │
+│   ┌─────────────────────────────────────┐                               │
+│   │ dev-orchestrator/SKILL.md           │                               │
+│   │                                     │                               │
+│   │   Check phase: ralph-dev state get  │                               │
+│   └─────────────────────────────────────┘                               │
+│         │                                                               │
+│         │ Dispatches based on current phase                             │
+│         ▼                                                               │
+│   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐       │
+│   │ phase-1-clarify │──►│ phase-2-breakdown│──►│ phase-3-implement│      │
+│   └─────────────────┘   └─────────────────┘   └─────────────────┘       │
+│                                                      │                   │
+│                                                      │ on error          │
+│                                                      ▼                   │
+│                                               ┌─────────────────┐        │
+│                                               │  phase-4-heal   │        │
+│                                               └─────────────────┘        │
+│                                                      │                   │
+│                                                      │ all done          │
+│                                                      ▼                   │
+│                                               ┌─────────────────┐        │
+│                                               │ phase-5-deliver │        │
+│                                               └─────────────────┘        │
+│                                                      │                   │
+│                                                      ▼                   │
+│                                               ┌─────────────────┐        │
+│                                               │    COMPLETE     │        │
+│                                               └─────────────────┘        │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. Data Flow Diagrams
+## 6. Plugin Infrastructure
+
+### Plugin Configuration
+
+**`.claude-plugin/plugin.json`:**
+
+```json
+{
+  "name": "ralph-dev",
+  "version": "0.1.0",
+  "description": "Autonomous end-to-end development system",
+  "hooks": {
+    "SessionStart": [...],
+    "PreCompact": [...]
+  }
+}
+```
+
+### Session Hooks
+
+| Hook | Script | Purpose |
+|------|--------|---------|
+| `SessionStart` | `hooks/session-start.sh` | Build CLI, validate environment |
+| `PreCompact` | `hooks/pre-compact.sh` | Save state before context compression |
+
+### Bootstrap System (`shared/`)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CLI BOOTSTRAP SEQUENCE                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   SessionStart Hook                                                     │
+│         │                                                               │
+│         ▼                                                               │
+│   ┌─────────────────────────────────────┐                               │
+│   │ shared/bootstrap-cli.sh             │                               │
+│   │                                     │                               │
+│   │   1. Check if cli/dist exists       │                               │
+│   │   2. If not: npm install && build   │                               │
+│   │   3. Verify ralph-dev command works │                               │
+│   └─────────────────────────────────────┘                               │
+│         │                                                               │
+│         │ CLI ready (or fallback to cli-fallback.sh)                    │
+│         ▼                                                               │
+│   ┌─────────────────────────────────────┐                               │
+│   │ ralph-dev available in PATH         │                               │
+│   └─────────────────────────────────────┘                               │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 7. Data Flow
 
 ### Phase 1-2: Clarify to Breakdown
 
@@ -482,68 +466,31 @@ Comprehensive architecture documentation with text-based flowcharts for the auto
 │   │ (clarify)       │                                                   │
 │   └─────────────────┘                                                   │
 │     │                                                                   │
-│     │ AskUserQuestion                                                   │
-│     ▼                                                                   │
-│   ┌─────────────────┐       ┌─────────────────┐                         │
-│   │ Q1: Auth type?  │◄─────►│ User Response   │                         │
-│   │ Q2: OAuth?      │       │ - JWT           │                         │
-│   │ Q3: 2FA?        │       │ - No OAuth      │                         │
-│   └─────────────────┘       │ - Yes 2FA       │                         │
-│     │                       └─────────────────┘                         │
-│     │                                                                   │
+│     │ AskUserQuestion (3-5 questions)                                   │
 │     ▼                                                                   │
 │   ┌─────────────────┐                                                   │
-│   │ Generate PRD    │                                                   │
+│   │ Generate PRD    │──────► .ralph-dev/prd.md                          │
 │   └─────────────────┘                                                   │
 │     │                                                                   │
-│     │ Write                                                             │
-│     ▼                                                                   │
-│   ┌─────────────────────────────────────────────┐                       │
-│   │ .ralph-dev/prd.md                           │                       │
-│   │ ┌─────────────────────────────────────────┐ │                       │
-│   │ │ # User Authentication System            │ │                       │
-│   │ │ ## Requirements                         │ │                       │
-│   │ │ - JWT-based auth                        │ │                       │
-│   │ │ - 2FA support                           │ │                       │
-│   │ │ ## User Stories                         │ │                       │
-│   │ │ - As a user, I can login...             │ │                       │
-│   │ └─────────────────────────────────────────┘ │                       │
-│   └─────────────────────────────────────────────┘                       │
-│     │                                                                   │
-│     │ state set --phase breakdown                                       │
+│     │ ralph-dev state set --phase breakdown                             │
 │     ▼                                                                   │
 │   ┌─────────────────┐                                                   │
 │   │ Phase 2 Skill   │                                                   │
 │   │ (breakdown)     │                                                   │
 │   └─────────────────┘                                                   │
 │     │                                                                   │
-│     │ Parse PRD                                                         │
+│     │ ralph-dev tasks create <id> ...                                   │
 │     ▼                                                                   │
-│   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │                                                                 │   │
-│   │   for each requirement:                                         │   │
-│   │       ralph-dev tasks create <id> --module <mod> --priority <p> │   │
-│   │                                                                 │   │
-│   └─────────────────────────────────────────────────────────────────┘   │
-│     │                                                                   │
-│     │ Creates files                                                     │
-│     ▼                                                                   │
-│   ┌─────────────────────────────────────────────┐                       │
-│   │ .ralph-dev/tasks/                           │                       │
-│   │ ├── auth/                                   │                       │
-│   │ │   ├── auth.login.md                       │                       │
-│   │ │   ├── auth.signup.md                      │                       │
-│   │ │   └── auth.2fa.md                         │                       │
-│   │ └── index.json                              │                       │
-│   └─────────────────────────────────────────────┘                       │
+│   ┌───────────────────────────────────────────┐                         │
+│   │ .ralph-dev/tasks/                         │                         │
+│   │ ├── auth/                                 │                         │
+│   │ │   ├── auth.login.md                     │                         │
+│   │ │   └── auth.signup.md                    │                         │
+│   │ └── index.json                            │                         │
+│   └───────────────────────────────────────────┘                         │
 │     │                                                                   │
 │     │ AskUserQuestion (approval)                                        │
-│     ▼                                                                   │
-│   ┌─────────────────┐                                                   │
-│   │ User: "Approve" │                                                   │
-│   └─────────────────┘                                                   │
-│     │                                                                   │
-│     │ state set --phase implement                                       │
+│     │ ralph-dev state set --phase implement                             │
 │     ▼                                                                   │
 │   ┌─────────────────┐                                                   │
 │   │ state.json      │                                                   │
@@ -562,108 +509,48 @@ Comprehensive architecture documentation with text-based flowcharts for the auto
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │ MAIN ORCHESTRATOR (Phase 3 Skill)                                │   │
+│   │ IMPLEMENTATION LOOP (Phase 3)                                    │   │
 │   │                                                                  │   │
-│   │   ┌──────────────┐                                               │   │
-│   │   │ ralph-dev    │                                               │   │
-│   │   │ tasks next   │──────┐                                        │   │
-│   │   │ --json       │      │                                        │   │
-│   │   └──────────────┘      │                                        │   │
-│   │                         ▼                                        │   │
-│   │                  ┌──────────────────────────┐                    │   │
-│   │                  │ {                        │                    │   │
-│   │                  │   "task": {              │                    │   │
-│   │                  │     "id": "auth.login",  │                    │   │
-│   │                  │     "module": "auth",    │                    │   │
-│   │                  │     "status": "pending"  │                    │   │
-│   │                  │   }                      │                    │   │
-│   │                  │ }                        │                    │   │
-│   │                  └──────────────────────────┘                    │   │
-│   │                         │                                        │   │
-│   │                         ▼                                        │   │
-│   │   ┌──────────────────────────────────────────────────────────┐   │   │
-│   │   │                   SUBAGENT (Task tool)                    │   │   │
-│   │   │                                                          │   │   │
-│   │   │   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐  │   │   │
-│   │   │   │  Read   │──►│  Write  │──►│  Bash   │──►│ Report  │  │   │   │
-│   │   │   │  Task   │   │  Tests  │   │CI=true  │   │ Result  │  │   │   │
-│   │   │   │  File   │   │  First  │   │npm test │   │         │  │   │   │
-│   │   │   └─────────┘   └─────────┘   └─────────┘   └─────────┘  │   │   │
-│   │   │                                    │                      │   │   │
-│   │   │                              ┌─────┴─────┐                │   │   │
-│   │   │                              │  Result   │                │   │   │
-│   │   │                              └───────────┘                │   │   │
-│   │   │                                                          │   │   │
-│   │   └──────────────────────────────────────────────────────────┘   │   │
-│   │                         │                                        │   │
-│   │                         ▼                                        │   │
-│   │                  ┌──────┴──────┐                                 │   │
-│   │                  │  Success?   │                                 │   │
-│   │                  └──────┬──────┘                                 │   │
-│   │                    yes  │  no                                    │   │
-│   │                    ─────┴─────                                   │   │
-│   │                   │           │                                  │   │
-│   │                   ▼           ▼                                  │   │
-│   │           ┌──────────┐  ┌──────────────────┐                     │   │
-│   │           │ tasks    │  │ Invoke Phase 4   │                     │   │
-│   │           │ done     │  │ (Heal)           │                     │   │
-│   │           │ <id>     │  └──────────────────┘                     │   │
-│   │           └──────────┘         │                                 │   │
-│   │                                ▼                                 │   │
-│   └────────────────────────────────┼─────────────────────────────────┘   │
-│                                    │                                     │
-│   ┌────────────────────────────────┼─────────────────────────────────┐   │
-│   │ HEALING FLOW (Phase 4 Skill)   │                                 │   │
-│   │                                ▼                                 │   │
-│   │   ┌─────────────────────────────────────────────────────────┐    │   │
-│   │   │ 1. INVESTIGATE                                          │    │   │
-│   │   │    - Read error output                                  │    │   │
-│   │   │    - Reproduce with: CI=true npm test                   │    │   │
-│   │   │    - Check: git diff HEAD~1                             │    │   │
-│   │   └─────────────────────────────────────────────────────────┘    │   │
-│   │                                │                                 │   │
-│   │                                ▼                                 │   │
-│   │   ┌─────────────────────────────────────────────────────────┐    │   │
-│   │   │ 2. PATTERN ANALYSIS                                     │    │   │
-│   │   │    - Grep: find working examples                        │    │   │
-│   │   │    - Read: compare working vs broken                    │    │   │
-│   │   └─────────────────────────────────────────────────────────┘    │   │
-│   │                                │                                 │   │
-│   │                                ▼                                 │   │
-│   │   ┌─────────────────────────────────────────────────────────┐    │   │
-│   │   │ 3. HYPOTHESIS + WebSearch                               │    │   │
-│   │   │    - Classify: type_error | import_error | test_failure │    │   │
-│   │   │    - WebSearch: "[error type] [framework] solution"     │    │   │
-│   │   └─────────────────────────────────────────────────────────┘    │   │
-│   │                                │                                 │   │
-│   │                                ▼                                 │   │
-│   │   ┌─────────────────────────────────────────────────────────┐    │   │
-│   │   │ 4. FIX & VERIFY (max 3 attempts)                        │    │   │
-│   │   │                                                         │    │   │
-│   │   │    attempt_count = 0                                    │    │   │
-│   │   │    while attempt_count < 3:                             │    │   │
-│   │   │        Edit: apply single fix                           │    │   │
-│   │   │        Bash: CI=true npm test                           │    │   │
-│   │   │        if pass: return success                          │    │   │
-│   │   │        attempt_count++                                  │    │   │
-│   │   │                                                         │    │   │
-│   │   │    return failed                                        │    │   │
-│   │   └─────────────────────────────────────────────────────────┘    │   │
-│   │                                │                                 │   │
-│   │                                ▼                                 │   │
-│   │                         ┌──────┴──────┐                          │   │
-│   │                         │   Fixed?    │                          │   │
-│   │                         └──────┬──────┘                          │   │
-│   │                           yes  │  no                             │   │
-│   │                           ─────┴─────                            │   │
-│   │                          │           │                           │   │
-│   │                          ▼           ▼                           │   │
-│   │                  ┌──────────┐  ┌──────────────┐                   │   │
-│   │                  │ Return   │  │ tasks fail   │                   │   │
-│   │                  │ to       │  │ <id>         │                   │   │
-│   │                  │ Implement│  │ --reason ... │                   │   │
-│   │                  └──────────┘  └──────────────┘                   │   │
+│   │   ralph-dev tasks next --json                                    │   │
+│   │          │                                                       │   │
+│   │          │ {task: {id: "auth.login", ...}}                       │   │
+│   │          ▼                                                       │   │
+│   │   ralph-dev tasks start <id>                                     │   │
+│   │          │                                                       │   │
+│   │          ▼                                                       │   │
+│   │   ┌───────────────────────────────────────────────────────┐      │   │
+│   │   │ FRESH SUBAGENT (Task tool)                            │      │   │
+│   │   │                                                       │      │   │
+│   │   │   1. Read task file                                   │      │   │
+│   │   │   2. Write failing tests (TDD)                        │      │   │
+│   │   │   3. Implement minimal code                           │      │   │
+│   │   │   4. Run tests: CI=true npm test                      │      │   │
+│   │   └───────────────────────────────────────────────────────┘      │   │
+│   │          │                                                       │   │
+│   │          ▼                                                       │   │
+│   │   ┌──────┴──────┐                                                │   │
+│   │   │  Success?   │                                                │   │
+│   │   └──────┬──────┘                                                │   │
+│   │      yes │ no                                                    │   │
+│   │          │  │                                                    │   │
+│   │          ▼  ▼                                                    │   │
+│   │   ┌─────────┐ ┌─────────────────────────────────────────┐        │   │
+│   │   │ tasks   │ │ HEALING FLOW (Phase 4)                  │        │   │
+│   │   │ done    │ │                                         │        │   │
+│   │   │ <id>    │ │   1. INVESTIGATE - Read error output    │        │   │
+│   │   └─────────┘ │   2. ANALYZE - Find working examples    │        │   │
+│   │       │       │   3. HYPOTHESIS - Classify error type   │        │   │
+│   │       │       │   4. FIX - Apply fix, verify (max 3x)   │        │   │
+│   │       │       │                                         │        │   │
+│   │       │       │   Circuit Breaker: 5 failures → skip    │        │   │
+│   │       │       └─────────────────────────────────────────┘        │   │
+│   │       │                     │                                    │   │
+│   │       │                     │ fixed / skip                       │   │
+│   │       └─────────────────────┴────────────────────────────────┐   │   │
+│   │                                                              │   │   │
+│   │                              ◄────────────────────────────────┘   │   │
 │   │                                                                  │   │
+│   │   Exit: ralph-dev tasks next → null (no more tasks)              │   │
 │   └──────────────────────────────────────────────────────────────────┘   │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -677,287 +564,156 @@ Comprehensive architecture documentation with text-based flowcharts for the auto
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │                     ┌─────────────┐                                     │
-│                     │   pending   │◄──────────── [created]              │
+│                     │   PENDING   │◄──────────── [created]              │
 │                     └─────────────┘                                     │
 │                            │                                            │
-│                            │ tasks start <id>                           │
+│                            │ ralph-dev tasks start <id>                 │
 │                            ▼                                            │
 │                     ┌─────────────┐                                     │
-│                     │ in_progress │                                     │
+│                     │ IN_PROGRESS │                                     │
 │                     └─────────────┘                                     │
 │                       │         │                                       │
-│           tasks done  │         │  tasks fail                           │
-│           <id>        │         │  <id> --reason                        │
+│           tasks done  │         │  tasks fail --reason                  │
 │                       ▼         ▼                                       │
 │               ┌───────────┐  ┌──────────┐                               │
-│               │ completed │  │  failed  │                               │
+│               │ COMPLETED │  │  FAILED  │                               │
 │               └───────────┘  └──────────┘                               │
-│                                                                         │
-│   Task File (.ralph-dev/tasks/{module}/{id}.md):                        │
-│   ┌─────────────────────────────────────────────┐                       │
-│   │ ---                                         │                       │
-│   │ id: auth.login                              │                       │
-│   │ module: auth                                │                       │
-│   │ priority: 1                                 │                       │
-│   │ status: pending → in_progress → completed   │                       │
-│   │ estimatedMinutes: 30                        │                       │
-│   │ dependencies: [setup.scaffold]              │                       │
-│   │ ---                                         │                       │
-│   │                                             │                       │
-│   │ # Description                               │                       │
-│   │ ...                                         │                       │
-│   └─────────────────────────────────────────────┘                       │
-│                                                                         │
-│   Index File (.ralph-dev/tasks/index.json):                             │
-│   ┌─────────────────────────────────────────────┐                       │
-│   │ {                                           │                       │
-│   │   "tasks": {                                │                       │
-│   │     "auth.login": {                         │                       │
-│   │       "id": "auth.login",                   │                       │
-│   │       "status": "completed",                │                       │
-│   │       "completedAt": "2026-01-20T..."       │                       │
-│   │     },                                      │                       │
-│   │     ...                                     │                       │
-│   │   }                                         │                       │
-│   │ }                                           │                       │
-│   └─────────────────────────────────────────────┘                       │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 5. Directory Structure
+## 8. Directory Structure
 
 ```
 ralph-dev/
 │
 ├── .claude-plugin/                    # PLUGIN LAYER
-│   ├── plugin.json                   # Plugin metadata & hooks
+│   ├── plugin.json                    # Plugin metadata & hooks config
+│   ├── marketplace.json               # Marketplace listing
 │   └── hooks/
-│       ├── session-start.sh          # Build CLI on session start
-│       └── pre-compact.sh            # Save state before compression
+│       ├── session-start.sh           # Build CLI on session start
+│       └── pre-compact.sh             # Save state before compression
 │
-├── cli/                              # CLI TOOL
+├── cli/                               # CLI TOOL (TypeScript)
 │   ├── src/
-│   │   ├── commands/                 # [Layer 1: Commands]
-│   │   │   ├── state.ts              #   State management commands
-│   │   │   ├── tasks.ts              #   Task management commands
-│   │   │   ├── detect.ts             #   Language detection
-│   │   │   ├── init.ts               #   Initialize workspace
-│   │   │   ├── status.ts             #   Status summary
-│   │   │   └── service-factory.ts    #   Dependency injection
+│   │   ├── commands/                  # [Layer 1: Commands]
+│   │   │   ├── state.ts               # State management commands
+│   │   │   ├── tasks.ts               # Task management commands
+│   │   │   ├── detect.ts              # Language detection
+│   │   │   ├── detect-ai.ts           # AI-specific detection
+│   │   │   ├── init.ts                # Initialize workspace
+│   │   │   ├── status.ts              # Status summary
+│   │   │   ├── circuit-breaker.ts     # Circuit breaker commands
+│   │   │   └── service-factory.ts     # Dependency injection
 │   │   │
-│   │   ├── services/                 # [Layer 2: Services]
-│   │   │   ├── state-service.ts      #   State management
-│   │   │   ├── task-service.ts       #   Task lifecycle
-│   │   │   ├── status-service.ts     #   Status summary
-│   │   │   └── detection-service.ts  #   Lang detection logic
+│   │   ├── services/                  # [Layer 2: Services]
+│   │   │   ├── task-service.ts        # Task lifecycle management
+│   │   │   ├── state-service.ts       # State transitions
+│   │   │   ├── status-service.ts      # Progress aggregation
+│   │   │   ├── detection-service.ts   # Language detection logic
+│   │   │   └── context-service.ts     # Context gathering
 │   │   │
-│   │   ├── repositories/             # [Layer 3: Repositories]
-│   │   │   ├── state-repository.ts   #   State interface
-│   │   │   ├── task-repository.ts    #   Task interface
-│   │   │   └── *.service.ts          #   File-based implementations
+│   │   ├── repositories/              # [Layer 3: Repositories]
+│   │   │   ├── task-repository.ts     # Interface
+│   │   │   ├── task-repository.service.ts
+│   │   │   ├── state-repository.ts    # Interface
+│   │   │   ├── state-repository.service.ts
+│   │   │   ├── index-repository.ts    # Interface
+│   │   │   └── index-repository.service.ts
 │   │   │
-│   │   ├── domain/                   # [Layer 4: Domain]
-│   │   │   ├── state-entity.ts       #   State with transitions
-│   │   │   └── task-entity.ts        #   Task with lifecycle
+│   │   ├── domain/                    # [Layer 4: Domain]
+│   │   │   ├── state-entity.ts        # State with transitions
+│   │   │   ├── task-entity.ts         # Task with lifecycle
+│   │   │   └── language-config.ts     # Language configuration
 │   │   │
-│   │   ├── infrastructure/           # [Layer 5: Infrastructure]
-│   │   │   ├── file-system.service.ts #   File I/O operations
-│   │   │   └── logger.service.ts      #   Logging
+│   │   ├── infrastructure/            # [Layer 5: Infrastructure]
+│   │   │   ├── file-system.ts         # Interface
+│   │   │   ├── file-system.service.ts # Implementation
+│   │   │   ├── logger.ts              # Interface
+│   │   │   └── logger.service.ts      # ConsoleLogger
 │   │   │
-│   │   ├── core/                     # Utilities
-│   │   │   ├── task-parser.ts        #   YAML frontmatter parser
-│   │   │   ├── task-writer.ts        #   Task file writer
-│   │   │   └── exit-codes.ts         #   Standard exit codes
+│   │   ├── core/                      # Utilities
+│   │   │   ├── task-parser.ts         # YAML frontmatter parser
+│   │   │   ├── task-writer.ts         # Task file writer
+│   │   │   ├── exit-codes.ts          # Standard exit codes
+│   │   │   ├── response-wrapper.ts    # JSON/human output
+│   │   │   ├── error-handler.ts       # Structured errors
+│   │   │   ├── structured-output.ts   # Output formatting
+│   │   │   ├── circuit-breaker.ts     # Circuit breaker pattern
+│   │   │   ├── retry.ts               # Retry with backoff
+│   │   │   └── ci-mode.ts             # CI environment detection
 │   │   │
-│   │   └── index.ts                  # CLI entry point
+│   │   ├── language/                  # Language Detection
+│   │   │   └── detector.ts            # Multi-language detector
+│   │   │
+│   │   ├── test-utils/                # Test Mocks
+│   │   │   ├── mock-logger.ts
+│   │   │   ├── mock-file-system.ts
+│   │   │   ├── mock-task-repository.ts
+│   │   │   ├── mock-state-repository.ts
+│   │   │   └── test-data.ts
+│   │   │
+│   │   └── index.ts                   # CLI entry point
 │   │
-│   ├── package.json                  # Dependencies
-│   └── dist/                         # Compiled output
+│   ├── package.json
+│   └── dist/                          # Compiled output
 │
-├── skills/                           # AI WORKFLOWS
+├── skills/                            # AI AGENT WORKFLOWS
+│   ├── dev-orchestrator/
+│   │   └── SKILL.md                   # Main orchestrator
 │   ├── phase-1-clarify/
-│   │   └── SKILL.md                  # Requirement clarification
+│   │   └── SKILL.md                   # Requirement clarification
 │   ├── phase-2-breakdown/
-│   │   └── SKILL.md                  # Task decomposition
+│   │   └── SKILL.md                   # Task decomposition
 │   ├── phase-3-implement/
-│   │   ├── SKILL.md                  # Implementation loop
-│   │   └── implementer-prompt-v2.md  # Subagent template
+│   │   ├── SKILL.md                   # Implementation loop
+│   │   └── implementer-prompt-v2.md   # Subagent template
 │   ├── phase-4-heal/
-│   │   └── SKILL.md                  # Error recovery
+│   │   └── SKILL.md                   # Error recovery
 │   ├── phase-5-deliver/
-│   │   └── SKILL.md                  # Quality gates & PR
-│   └── dev-orchestrator/
-│       └── SKILL.md                  # Main orchestrator
+│   │   └── SKILL.md                   # Quality gates & PR
+│   └── detect-language/
+│       └── SKILL.md                   # Language detection
 │
-├── commands/                         # USER COMMANDS
-│   └── ralph-dev.md                  # /ralph-dev command
+├── shared/                            # SHARED UTILITIES
+│   ├── bootstrap-cli.sh               # CLI bootstrap script
+│   ├── cli-fallback.sh                # Bash fallback
+│   ├── test-bootstrap.sh              # Bootstrap tests
+│   └── README.md
 │
-├── .ralph-dev/                       # WORKSPACE (runtime)
-│   ├── state.json                   # Current phase & progress
-│   ├── prd.md                       # Product requirements
+├── commands/                          # USER COMMANDS
+│   └── ralph-dev.md                   # /ralph-dev command
+│
+├── .ralph-dev/                        # WORKSPACE (runtime, gitignored)
+│   ├── state.json                     # Current phase & progress
+│   ├── prd.md                         # Product requirements
+│   ├── language.json                  # Detected language config
 │   └── tasks/
-│       ├── index.json               # Task metadata index
-│       └── {module}/{id}.md         # Individual tasks
+│       ├── index.json                 # Task metadata index
+│       └── {module}/{id}.md           # Individual task files
 │
 ├── .claude/
-│   └── rules/                        # Workflow documentation
+│   └── rules/                         # Workflow documentation
 │       ├── ralph-dev-workflow.md
 │       ├── ralph-dev-principles.md
 │       └── ralph-dev-commands.md
 │
-└── docs/                             # Documentation
-    ├── ARCHITECTURE.md              # This file
-    ├── CONFIGURATION.md
-    └── QUICK_START_V0.3.md
+├── docs/                              # Documentation
+│   ├── ARCHITECTURE.md                # This file
+│   ├── CONFIGURATION.md
+│   ├── QUICK_START_V0.3.md
+│   ├── CRITICAL_FEATURES.md
+│   └── ralph-dev-guide.md
+│
+├── CLAUDE.md                          # Project instructions
+└── package.json                       # Root package
 ```
 
 ---
 
-## 6. Component Interaction Diagrams
-
-### Plugin Bootstrap Sequence
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    SESSION START SEQUENCE                               │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   Claude Code Session Start                                             │
-│         │                                                               │
-│         │ triggers SessionStart hook                                    │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ .claude-plugin/hooks/session-start.sh │                             │
-│   └─────────────────────────────────────┘                               │
-│         │                                                               │
-│         │ executes                                                      │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ shared/bootstrap-cli.sh             │                               │
-│   │                                     │                               │
-│   │   if [ ! -d "cli/dist" ]; then      │                               │
-│   │       cd cli && npm install         │                               │
-│   │       npm run build                 │                               │
-│   │   fi                                │                               │
-│   └─────────────────────────────────────┘                               │
-│         │                                                               │
-│         │ CLI ready                                                     │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ ralph-dev available                 │                               │
-│   └─────────────────────────────────────┘                               │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Context Compression Recovery
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    CONTEXT COMPRESSION RECOVERY                         │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   Context Near Limit                                                    │
-│         │                                                               │
-│         │ triggers PreCompact hook                                      │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ .claude-plugin/hooks/pre-compact.sh │                               │
-│   │                                     │                               │
-│   │   ralph-dev state get --json        │  ← Save current state         │
-│   │   ralph-dev tasks list --json       │  ← Save task progress         │
-│   └─────────────────────────────────────┘                               │
-│         │                                                               │
-│         │ context compressed                                            │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ Session Resumes (new context)       │                               │
-│   └─────────────────────────────────────┘                               │
-│         │                                                               │
-│         │ Skill reads rules                                             │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │ RECOVERY SEQUENCE (from ralph-dev-workflow.md)                   │   │
-│   │                                                                  │   │
-│   │   Step 1: ralph-dev state get --json                             │   │
-│   │           → {phase: "implement", currentTask: "auth.2fa"}        │   │
-│   │                                                                  │   │
-│   │   Step 2: ralph-dev tasks list --json                            │   │
-│   │           → {completed: 5, pending: 3, failed: 1}                │   │
-│   │                                                                  │   │
-│   │   Step 3: ralph-dev tasks next --json                            │   │
-│   │           → {task: {id: "auth.2fa"}}                             │   │
-│   │                                                                  │   │
-│   │   Step 4: Resume appropriate phase skill                         │   │
-│   │           → Skill "ralph-dev:phase-3-implement"                  │   │
-│   └─────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Skill Invocation Chain
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    SKILL INVOCATION CHAIN                               │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   User: /ralph-dev                                                      │
-│         │                                                               │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ dev-orchestrator/SKILL.md           │                               │
-│   │                                     │                               │
-│   │   Check phase: ralph-dev state get  │                               │
-│   └─────────────────────────────────────┘                               │
-│         │                                                               │
-│         │ phase = "none" (new session)                                  │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ Skill tool: ralph-dev:phase-1-clarify │                             │
-│   └─────────────────────────────────────┘                               │
-│         │                                                               │
-│         │ PRD generated                                                 │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ Skill tool: ralph-dev:phase-2-breakdown │                           │
-│   └─────────────────────────────────────┘                               │
-│         │                                                               │
-│         │ Tasks created                                                 │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ Skill tool: ralph-dev:phase-3-implement │                           │
-│   │                                     │                               │
-│   │   for each task:                    │                               │
-│   │     Task tool → fresh subagent      │────┐                          │
-│   │                                     │    │                          │
-│   │     if failed:                      │    │ TDD implementation       │
-│   │       Skill: ralph-dev:phase-4-heal │◄───┘                          │
-│   │                                     │                               │
-│   └─────────────────────────────────────┘                               │
-│         │                                                               │
-│         │ All tasks done                                                │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ Skill tool: ralph-dev:phase-5-deliver │                             │
-│   │                                     │                               │
-│   │   Quality gates → commit → PR       │                               │
-│   └─────────────────────────────────────┘                               │
-│         │                                                               │
-│         ▼                                                               │
-│   ┌─────────────────────────────────────┐                               │
-│   │ Complete                            │                               │
-│   └─────────────────────────────────────┘                               │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 7. Error Handling & Recovery
+## 9. Error Handling & Recovery
 
 ### Circuit Breaker Pattern
 
@@ -971,120 +727,95 @@ ralph-dev/
 │                         │ (normal) │                  │                 │
 │                         └──────────┘                  │                 │
 │                              │                        │                 │
-│                              │ 5 consecutive          │                 │
+│                              │ 5 consecutive          │ success         │
 │                              │ failures               │                 │
 │                              ▼                        │                 │
 │                         ┌──────────┐                  │                 │
-│                         │   OPEN   │                  │ 60 seconds      │
-│                         │(fail-fast)│                 │ elapsed         │
+│                         │   OPEN   │                  │                 │
+│                         │(fail-fast)│                 │                 │
 │                         └──────────┘                  │                 │
 │                              │                        │                 │
 │                              │ after 60s              │                 │
 │                              ▼                        │                 │
 │                         ┌──────────┐                  │                 │
 │                         │HALF-OPEN │──────────────────┘                 │
-│                         │ (probe)  │    success                         │
+│                         │ (probe)  │                                    │
 │                         └──────────┘                                    │
 │                              │                                          │
-│                              │ failure                                  │
+│                              │ failure → back to OPEN                   │
 │                              ▼                                          │
-│                         ┌──────────┐                                    │
-│                         │   OPEN   │                                    │
-│                         └──────────┘                                    │
 │                                                                         │
-│   Usage in Phase 4 Skill (ralph-dev:phase-4-heal):                      │
-│   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │ // Circuit breaker logic is implemented in skill workflow:      │   │
-│   │ // - Track consecutive failures per task                        │   │
-│   │ // - After 5 failures: mark task as failed, skip to next        │   │
-│   │ // - 60 second cooldown before retry                            │   │
-│   │ //                                                              │   │
-│   │ // Healing is handled by skills, not CLI services:              │   │
-│   │ // 1. Skills invoke: ralph-dev tasks fail <id> --reason "..."   │   │
-│   │ // 2. Skills track failure count in skill context               │   │
-│   │ // 3. Skills decide when to open circuit (skip task)            │   │
-│   └─────────────────────────────────────────────────────────────────┘   │
+│   Configuration: maxFailures=5, timeout=60s                             │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Retry Logic with Exponential Backoff
+### Retry with Exponential Backoff
+
+```
+Attempt 1 → fail → wait 100ms
+Attempt 2 → fail → wait 200ms
+Attempt 3 → fail → throw Error
+
+Configuration:
+- maxAttempts: 3
+- initialDelay: 100ms
+- maxDelay: 1000ms
+- backoffMultiplier: 2
+```
+
+### Exit Codes
+
+| Code | Name | Description |
+|------|------|-------------|
+| 0 | `SUCCESS` | Operation completed successfully |
+| 1 | `GENERAL_ERROR` | Unexpected error |
+| 2 | `NOT_FOUND` | Resource not found (task, state) |
+| 3 | `INVALID_INPUT` | Bad arguments, validation failed |
+| 4 | `CONFLICT` | Duplicate ID, invalid transition |
+| 5 | `SYSTEM_ERROR` | File system error |
+
+### Context Compression Recovery
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                    RETRY WITH EXPONENTIAL BACKOFF                       │
+│                    CONTEXT COMPRESSION RECOVERY                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│   Retryable Errors: EBUSY, ENOENT, EAGAIN, ETIMEDOUT                    │
+│   1. PreCompact hook saves state                                        │
+│   2. Context compressed                                                 │
+│   3. Session resumes with fresh context                                 │
+│   4. Recovery sequence:                                                 │
 │                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │                                                                 │   │
-│   │   Attempt 1                                                     │   │
-│   │       │                                                         │   │
-│   │       │ fail (EBUSY)                                            │   │
-│   │       ▼                                                         │   │
-│   │   wait 100ms                                                    │   │
-│   │       │                                                         │   │
-│   │       ▼                                                         │   │
-│   │   Attempt 2                                                     │   │
-│   │       │                                                         │   │
-│   │       │ fail (EBUSY)                                            │   │
-│   │       ▼                                                         │   │
-│   │   wait 200ms (2x)                                               │   │
-│   │       │                                                         │   │
-│   │       ▼                                                         │   │
-│   │   Attempt 3                                                     │   │
-│   │       │                                                         │   │
-│   │       │ fail (EBUSY)                                            │   │
-│   │       ▼                                                         │   │
-│   │   throw Error (max attempts exceeded)                           │   │
-│   │                                                                 │   │
-│   └─────────────────────────────────────────────────────────────────┘   │
+│      ralph-dev state get --json                                         │
+│      → {phase: "implement", currentTask: "auth.2fa"}                    │
 │                                                                         │
-│   Configuration:                                                        │
-│   - maxAttempts: 3                                                      │
-│   - initialDelay: 100ms                                                 │
-│   - maxDelay: 1000ms (cap)                                              │
-│   - backoffMultiplier: 2                                                │
+│      ralph-dev tasks list --json                                        │
+│      → {completed: 5, pending: 3, failed: 1}                            │
+│                                                                         │
+│      ralph-dev tasks next --json                                        │
+│      → {task: {id: "auth.2fa"}}                                         │
+│                                                                         │
+│   5. Resume appropriate phase skill                                     │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Exit Code Reference
+---
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    CLI EXIT CODES                                       │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   Code │ Name           │ Description                                   │
-│   ─────┼────────────────┼───────────────────────────────────────────    │
-│   0    │ SUCCESS        │ Operation completed successfully              │
-│   1    │ GENERAL_ERROR  │ Unexpected error, implementation issue        │
-│   2    │ NOT_FOUND      │ Resource not found (task, state)              │
-│   3    │ INVALID_INPUT  │ Bad arguments, validation failed              │
-│   4    │ CONFLICT       │ Duplicate task ID, invalid transition         │
-│   5    │ SYSTEM_ERROR   │ File system error, permission denied          │
-│                                                                         │
-│   Usage in Commands:                                                    │
-│   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │ import { ExitCode } from '../core/exit-codes';                  │   │
-│   │                                                                 │   │
-│   │ try {                                                           │   │
-│   │   const task = await service.getTask(id);                       │   │
-│   │   if (!task) {                                                  │   │
-│   │     process.exit(ExitCode.NOT_FOUND);                           │   │
-│   │   }                                                             │   │
-│   │ } catch (e) {                                                   │   │
-│   │   if (e.code === 'ENOENT') {                                    │   │
-│   │     process.exit(ExitCode.SYSTEM_ERROR);                        │   │
-│   │   }                                                             │   │
-│   │   process.exit(ExitCode.GENERAL_ERROR);                         │   │
-│   │ }                                                               │   │
-│   └─────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+## 10. Technology Stack
+
+| Layer | Technology |
+|-------|------------|
+| **CLI** | TypeScript 5.3+, Commander.js |
+| **Validation** | Zod schemas |
+| **Serialization** | YAML (tasks), JSON (state, index) |
+| **Testing** | Vitest |
+| **File I/O** | fs-extra |
+| **Terminal** | Chalk (colors) |
+| **Runtime** | Node.js 18+ |
+| **Skills** | Markdown with YAML frontmatter |
+| **Plugin** | Claude Code Plugin API |
 
 ---
 
@@ -1095,7 +826,12 @@ Ralph-dev is a **state-driven, context-compression resilient** autonomous develo
 1. **Transforms requirements** through 5 phases: Clarify → Breakdown → Implement ⇄ Heal → Deliver
 2. **Persists all state** via CLI to survive context compression
 3. **Implements with TDD** using fresh subagents per task
-4. **Recovers from errors** with 4-phase healing and circuit breakers
+4. **Recovers from errors** with healing skill and circuit breakers
 5. **Delivers quality code** through automated gates and PR creation
 
 The architecture enforces strict separation of concerns through layered CLI design and skill-based AI workflows, enabling reliable autonomous development from natural language to production-ready code.
+> Ralph-dev 是一个**状态驱动、上下文压缩弹性**的自主开发系统。
+
+---
+
+*Last Updated: 2026-01-20*

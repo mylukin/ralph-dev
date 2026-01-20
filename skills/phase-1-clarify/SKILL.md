@@ -284,13 +284,28 @@ Generated: {timestamp}
 
 ### Step 5: Save PRD
 
-Save the generated PRD to workspace:
+Save the generated PRD to workspace with automatic backup of existing PRD:
 
 ```bash
 # Ensure workspace directory exists
 mkdir -p .ralph-dev
 
-# Save PRD
+# ═══════════════════════════════════════════
+# BACKUP EXISTING PRD (if exists)
+# ═══════════════════════════════════════════
+if [ -f ".ralph-dev/prd.md" ]; then
+  BACKUP_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+  BACKUP_FILE=".ralph-dev/prd.${BACKUP_TIMESTAMP}.bak"
+
+  cp .ralph-dev/prd.md "$BACKUP_FILE"
+  echo "📦 Previous PRD backed up to: $BACKUP_FILE"
+
+  # Keep only last 5 backups (cleanup old ones)
+  ls -t .ralph-dev/prd.*.bak 2>/dev/null | tail -n +6 | xargs -r rm -f
+  echo "   (Keeping last 5 backups)"
+fi
+
+# Save new PRD
 cat > .ralph-dev/prd.md <<'EOF'
 {GENERATED_PRD_CONTENT}
 EOF

@@ -325,35 +325,27 @@ For each task:
 
 ## Configuration
 
-Ralph-dev can be configured through environment variables or `.claude/CLAUDE.md` file.
+Ralph-dev can be configured through environment variables. See [Configuration Guide](docs/CONFIGURATION.md) for details.
 
 ### Environment Variables
 
-```bash
-# Auto-cleanup after delivery (default: ask)
-export RALPH_DEV_AUTO_CLEANUP=true   # Auto-cleanup temporary files
-export RALPH_DEV_AUTO_CLEANUP=false  # Keep all files
-export RALPH_DEV_AUTO_CLEANUP=ask    # Ask user (default)
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `CI` | Enable CI mode for tests (non-interactive) | - |
+| `RALPH_DEV_WORKSPACE` | Override workspace directory | `process.cwd()` |
 
-# Baseline test verification (default: false)
-export RALPH_DEV_SKIP_BASELINE=true  # Skip baseline tests
-export RALPH_DEV_SKIP_BASELINE=false # Run baseline tests (recommended)
+### CI/CD Configuration
+
+For CI/CD automation, use `.ralph-dev/ci-config.yml`:
+
+```yaml
+ci_mode:
+  enabled: true
+  auto_approve_breakdown: true
+  limits:
+    max_tasks: 50
+    max_total_time: "4h"
 ```
-
-### CLAUDE.md Configuration
-
-Add to `.claude/CLAUDE.md` for project-specific settings:
-
-```markdown
-# Ralph-dev Configuration
-
-```bash
-export RALPH_DEV_AUTO_CLEANUP=true
-export RALPH_DEV_SKIP_BASELINE=false
-```
-```
-
-See [Configuration Guide](docs/CONFIGURATION.md) for details.
 
 ### Git Configuration
 Add `.ralph-dev/` directory to your `.gitignore`:

@@ -8,99 +8,120 @@
 
 ### Overview
 
-Ralph-dev can be configured through environment variables or `.claude/CLAUDE.md` file to customize workspace behavior.
+Ralph-dev can be configured through environment variables or configuration files to customize behavior.
 
-### Configuration via Environment Variables
+### Environment Variables
 
-Set environment variables before running ralph-dev:
+#### Core Variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `CI` | Enable CI mode for tests (non-interactive) | - |
+| `RALPH_DEV_WORKSPACE` | Override workspace directory | `process.cwd()` |
+
+#### Bootstrap Variables (shared/bootstrap-cli.sh)
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `SKIP_BOOTSTRAP` | Skip automatic CLI bootstrap | `0` |
+| `FORCE_REBUILD` | Force local CLI rebuild | `0` |
+
+#### CI/CD Variables
+
+These can also be configured via `.ralph-dev/ci-config.yml` (recommended):
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `RALPH_DEV_CI_MODE` | Enable CI mode | `false` |
+| `RALPH_DEV_AUTO_APPROVE` | Auto-approve task breakdown | `false` |
+| `SLACK_WEBHOOK_URL` | Slack notifications webhook | - |
+
+#### Git Variables (Standard)
+
+| Variable | Purpose |
+|----------|---------|
+| `GIT_AUTHOR_NAME` | Git commit author name |
+| `GIT_AUTHOR_EMAIL` | Git commit author email |
+| `GIT_COMMITTER_NAME` | Git committer name |
+| `GIT_COMMITTER_EMAIL` | Git committer email |
+
+#### Claude Code Variables (System-provided)
+
+| Variable | Purpose |
+|----------|---------|
+| `CLAUDE_PLUGIN_ROOT` | Plugin installation directory |
+| `CLAUDE_PROJECT_DIR` | Current project directory |
+| `CLAUDE_ENV_FILE` | Environment file for persistence |
+
+### CI/CD Configuration File
+
+For CI/CD automation, use `.ralph-dev/ci-config.yml` instead of environment variables:
+
+```yaml
+# .ralph-dev/ci-config.yml
+ci_mode:
+  enabled: true
+  auto_approve_breakdown: true
+
+  # Pre-defined answers for Phase 1 (no interactive questions)
+  clarify_answers:
+    project_type: "Web application"
+    tech_stack: "TypeScript"
+    scale: "Production"
+    auth: "Basic"
+    deployment: "Cloud"
+
+  # Resource limits
+  limits:
+    max_tasks: 50
+    max_healing_time: "30m"
+    max_total_time: "4h"
+
+  # Notifications
+  notifications:
+    slack_webhook: "https://hooks.slack.com/..."
+    on_success: true
+    on_failure: true
+
+  # Git configuration
+  git:
+    author: "CI Bot <[email protected]>"
+    branch_prefix: "ralph-dev/"
+
+  # PR configuration
+  pr:
+    labels: ["auto-generated", "ralph-dev"]
+    reviewers: ["team-lead"]
+    auto_merge_on_success: false
+```
+
+### Hooks Behavior
+
+Ralph-dev uses three hooks:
+
+| Hook | File | Purpose |
+|------|------|---------|
+| `SessionStart` | `hooks/session-start.sh` | Install workflow rules, display session state |
+| `PreCompact` | `hooks/pre-compact.sh` | Save state checkpoint before compression |
+| `Stop` | `hooks/stop-hook.sh` | Prevent exit until session complete |
+
+#### Stop Hook Behavior
+
+The Stop hook prevents Claude from exiting while a ralph-dev session is in progress:
+
+- **Allow stop**: No state file exists OR `phase == "complete"`
+- **Block stop**: Any other phase (clarify, breakdown, implement, heal, deliver)
+
+When blocked, the hook returns a prompt to resume the current phase.
+
+### Testing Configuration
+
+**CRITICAL**: Always use `CI=true` when running tests:
 
 ```bash
-# Auto-cleanup after delivery
-export RALPH_DEV_AUTO_CLEANUP=true   # Auto-cleanup temporary files
-export RALPH_DEV_AUTO_CLEANUP=false  # Keep all files
-export RALPH_DEV_AUTO_CLEANUP=ask    # Ask user (default)
-
-# Baseline test behavior
-export RALPH_DEV_SKIP_BASELINE=true  # Skip baseline test verification
-export RALPH_DEV_SKIP_BASELINE=false # Run baseline tests (default)
+CI=true npm test
+CI=true npx vitest run src/core/task-parser.test.ts
 ```
-
-### Configuration via CLAUDE.md
-
-Add configuration to `.claude/CLAUDE.md`:
-
-```markdown
-# Ralph-dev Configuration
-
-## Auto-Cleanup
-
-```bash
-export RALPH_DEV_AUTO_CLEANUP=true
-```
-
-Automatically remove temporary files after delivery (state.json, progress.log, debug.log).
-Preserves documentation (prd.md, tasks/).
-
-## Baseline Testing
-
-```bash
-export RALPH_DEV_SKIP_BASELINE=false
-```
-
-Verify all tests pass before starting implementation (recommended).
-```
-
-### Available Configuration Options
-
-| Option | Values | Default | Description |
-|--------|--------|---------|-------------|
-| `RALPH_DEV_AUTO_CLEANUP` | `true`, `false`, `ask` | `ask` | Cleanup temporary files after delivery |
-| `RALPH_DEV_SKIP_BASELINE` | `true`, `false` | `false` | Skip baseline test verification |
-
-### Configuration Priority
-
-1. Environment variables (highest priority)
-2. `.claude/CLAUDE.md` file
-3. Default values (lowest priority)
-
-### Example: Project-Specific Configuration
-
-Create `.claude/CLAUDE.md` in your project root:
-
-```markdown
-# Project Configuration
-
-## Ralph-dev Settings
-
-```bash
-# Auto-cleanup enabled for this project
-export RALPH_DEV_AUTO_CLEANUP=true
-
-# Always run baseline tests (enforce clean starting point)
-export RALPH_DEV_SKIP_BASELINE=false
-```
-
-## Other project settings...
-```
-
-### Safety Features
-
-Ralph-dev includes the following safety checks (inspired by Superpowers):
-
-1. **Gitignore Verification** (Phase 2)
-   - Automatically checks if `.ralph-dev/` is in gitignore
-   - Adds missing entries and commits if needed
-   - Uses `git check-ignore` to respect all gitignore levels
-
-2. **Baseline Test Verification** (Phase 3)
-   - Runs tests before starting implementation
-   - Ensures clean starting point
-   - Allows user to fix failing tests or continue
-
-3. **Auto-Cleanup** (Phase 5)
-   - Removes temporary files after delivery
-   - Preserves documentation files
-   - Configurable behavior
 
 ---
 
@@ -108,96 +129,117 @@ Ralph-dev includes the following safety checks (inspired by Superpowers):
 
 ### 概述
 
-Ralph-dev 可以通过环境变量或 `.claude/CLAUDE.md` 文件进行配置以自定义工作区行为。
+Ralph-dev 可以通过环境变量或配置文件进行配置以自定义行为。
 
-### 通过环境变量配置
+### 环境变量
 
-在运行 ralph-dev 之前设置环境变量：
+#### 核心变量
+
+| 变量 | 用途 | 默认值 |
+|------|------|--------|
+| `CI` | 启用 CI 模式运行测试（非交互） | - |
+| `RALPH_DEV_WORKSPACE` | 覆盖工作区目录 | `process.cwd()` |
+
+#### Bootstrap 变量 (shared/bootstrap-cli.sh)
+
+| 变量 | 用途 | 默认值 |
+|------|------|--------|
+| `SKIP_BOOTSTRAP` | 跳过自动 CLI 引导 | `0` |
+| `FORCE_REBUILD` | 强制本地 CLI 重建 | `0` |
+
+#### CI/CD 变量
+
+这些也可以通过 `.ralph-dev/ci-config.yml` 配置（推荐）：
+
+| 变量 | 用途 | 默认值 |
+|------|------|--------|
+| `RALPH_DEV_CI_MODE` | 启用 CI 模式 | `false` |
+| `RALPH_DEV_AUTO_APPROVE` | 自动批准任务分解 | `false` |
+| `SLACK_WEBHOOK_URL` | Slack 通知 webhook | - |
+
+#### Git 变量（标准）
+
+| 变量 | 用途 |
+|------|------|
+| `GIT_AUTHOR_NAME` | Git 提交作者名称 |
+| `GIT_AUTHOR_EMAIL` | Git 提交作者邮箱 |
+| `GIT_COMMITTER_NAME` | Git 提交者名称 |
+| `GIT_COMMITTER_EMAIL` | Git 提交者邮箱 |
+
+#### Claude Code 变量（系统提供）
+
+| 变量 | 用途 |
+|------|------|
+| `CLAUDE_PLUGIN_ROOT` | 插件安装目录 |
+| `CLAUDE_PROJECT_DIR` | 当前项目目录 |
+| `CLAUDE_ENV_FILE` | 持久化环境文件 |
+
+### CI/CD 配置文件
+
+对于 CI/CD 自动化，使用 `.ralph-dev/ci-config.yml` 而不是环境变量：
+
+```yaml
+# .ralph-dev/ci-config.yml
+ci_mode:
+  enabled: true
+  auto_approve_breakdown: true
+
+  # Phase 1 预定义答案（无交互问题）
+  clarify_answers:
+    project_type: "Web application"
+    tech_stack: "TypeScript"
+    scale: "Production"
+    auth: "Basic"
+    deployment: "Cloud"
+
+  # 资源限制
+  limits:
+    max_tasks: 50
+    max_healing_time: "30m"
+    max_total_time: "4h"
+
+  # 通知
+  notifications:
+    slack_webhook: "https://hooks.slack.com/..."
+    on_success: true
+    on_failure: true
+
+  # Git 配置
+  git:
+    author: "CI Bot <[email protected]>"
+    branch_prefix: "ralph-dev/"
+
+  # PR 配置
+  pr:
+    labels: ["auto-generated", "ralph-dev"]
+    reviewers: ["team-lead"]
+    auto_merge_on_success: false
+```
+
+### Hooks 行为
+
+Ralph-dev 使用三个 hooks：
+
+| Hook | 文件 | 用途 |
+|------|------|------|
+| `SessionStart` | `hooks/session-start.sh` | 安装工作流规则，显示会话状态 |
+| `PreCompact` | `hooks/pre-compact.sh` | 压缩前保存状态检查点 |
+| `Stop` | `hooks/stop-hook.sh` | 防止在会话完成前退出 |
+
+#### Stop Hook 行为
+
+Stop hook 防止 Claude 在 ralph-dev 会话进行中退出：
+
+- **允许停止**：状态文件不存在 或 `phase == "complete"`
+- **阻止停止**：任何其他阶段（clarify、breakdown、implement、heal、deliver）
+
+当被阻止时，hook 返回一个提示以恢复当前阶段。
+
+### 测试配置
+
+**重要**：运行测试时始终使用 `CI=true`：
 
 ```bash
-# 交付后自动清理
-export RALPH_DEV_AUTO_CLEANUP=true   # 自动清理临时文件
-export RALPH_DEV_AUTO_CLEANUP=false  # 保留所有文件
-export RALPH_DEV_AUTO_CLEANUP=ask    # 询问用户（默认）
-
-# 基线测试行为
-export RALPH_DEV_SKIP_BASELINE=true  # 跳过基线测试验证
-export RALPH_DEV_SKIP_BASELINE=false # 运行基线测试（默认）
+CI=true npm test
+CI=true npx vitest run src/core/task-parser.test.ts
 ```
-
-### 通过 CLAUDE.md 配置
-
-将配置添加到 `.claude/CLAUDE.md`：
-
-```markdown
-# Ralph-dev 配置
-
-## 自动清理
-
-```bash
-export RALPH_DEV_AUTO_CLEANUP=true
-```
-
-交付后自动删除临时文件（state.json、progress.log、debug.log）。
-保留文档（prd.md、tasks/）。
-
-## 基线测试
-
-```bash
-export RALPH_DEV_SKIP_BASELINE=false
-```
-
-在开始实现前验证所有测试通过（推荐）。
-```
-
-### 可用配置选项
-
-| 选项 | 值 | 默认值 | 描述 |
-|------|-----|--------|------|
-| `RALPH_DEV_AUTO_CLEANUP` | `true`, `false`, `ask` | `ask` | 交付后清理临时文件 |
-| `RALPH_DEV_SKIP_BASELINE` | `true`, `false` | `false` | 跳过基线测试验证 |
-
-### 配置优先级
-
-1. 环境变量（最高优先级）
-2. `.claude/CLAUDE.md` 文件
-3. 默认值（最低优先级）
-
-### 示例：项目特定配置
-
-在项目根目录创建 `.claude/CLAUDE.md`：
-
-```markdown
-# 项目配置
-
-## Ralph-dev 设置
-
-```bash
-# 为此项目启用自动清理
-export RALPH_DEV_AUTO_CLEANUP=true
-
-# 始终运行基线测试（强制执行干净的起点）
-export RALPH_DEV_SKIP_BASELINE=false
-```
-
-## 其他项目设置...
-```
-
-### 安全功能
-
-Ralph-dev 包含以下安全检查（受 Superpowers 启发）：
-
-1. **Gitignore 验证**（Phase 2）
-   - 自动检查 `.ralph-dev/` 是否在 gitignore 中
-   - 如需要添加缺失的条目并提交
-   - 使用 `git check-ignore` 以尊重所有 gitignore 级别
-
-2. **基线测试验证**（Phase 3）
-   - 在开始实现前运行测试
-   - 确保干净的起点
-   - 允许用户修复失败的测试或继续
-
-3. **自动清理**（Phase 5）
-   - 交付后删除临时文件
-   - 保留文档文件
-   - 可配置行为

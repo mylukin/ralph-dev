@@ -7,15 +7,14 @@
 #   source ${CLAUDE_PLUGIN_ROOT}/shared/bootstrap-cli.sh
 #
 # This script will:
-# 1. Check if the CLI is built and available
-# 2. Build it automatically if missing (npm install + build)
-# 3. Validate it works correctly
-# 4. Provide friendly error messages if build fails
+# 1. Check if ralph-dev CLI is globally installed
+# 2. If not, install via npm install -g
+# 3. Fall back to local build if global install fails
+# 4. Validate CLI works correctly
 #
 # Environment variables:
-#   SKIP_BOOTSTRAP=1        Skip automatic bootstrap (for testing)
-#   FORCE_REBUILD=1         Force rebuild even if CLI exists
-#   BOOTSTRAP_QUIET=1       Suppress non-error output
+#   SKIP_BOOTSTRAP=1   Skip automatic bootstrap (for testing)
+#   FORCE_REBUILD=1    Force local rebuild (skip global, rebuild local)
 #
 
 set -euo pipefail
@@ -25,23 +24,19 @@ set -euo pipefail
 # ============================================================
 
 if [ -t 1 ]; then
-  # Terminal supports colors
   RED='\033[0;31m'
   GREEN='\033[0;32m'
   YELLOW='\033[1;33m'
   BLUE='\033[0;34m'
   CYAN='\033[0;36m'
-  GRAY='\033[0;90m'
   BOLD='\033[1m'
-  NC='\033[0m' # No Color
+  NC='\033[0m'
 else
-  # No color support
   RED=''
   GREEN=''
   YELLOW=''
   BLUE=''
   CYAN=''
-  GRAY=''
   BOLD=''
   NC=''
 fi
@@ -50,47 +45,34 @@ fi
 # Configuration
 # ============================================================
 
-# Determine project root (smart resolution for dev and production)
-# Priority:
-# 1. Current working directory (if it has cli/ subdirectory)
-# 2. CLAUDE_PLUGIN_ROOT (if set and has cli/ subdirectory)
-# 3. Script location parent directory (fallback)
+RALPH_DEV_PACKAGE="ralph-dev"
 
+# Determine project root for local fallback
 RALPH_DEV_ROOT=""
 
-# Try current working directory first (for development)
 if [ -d "$PWD/cli" ]; then
   RALPH_DEV_ROOT="$PWD"
-# Try CLAUDE_PLUGIN_ROOT (for installed plugin)
 elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/cli" ]; then
   RALPH_DEV_ROOT="${CLAUDE_PLUGIN_ROOT}"
-# Fallback: use script location (safe BASH_SOURCE handling)
 elif [ -n "${BASH_SOURCE[0]:-}" ]; then
   RALPH_DEV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 else
-  # Last resort: assume we're in shared/ directory
   RALPH_DEV_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-FOREMAN_CLI_PATH="${RALPH_DEV_ROOT}/cli/dist/index.js"
-FOREMAN_CLI_DIR="${RALPH_DEV_ROOT}/cli"
+LOCAL_CLI_PATH="${RALPH_DEV_ROOT}/cli/dist/index.js"
+LOCAL_CLI_DIR="${RALPH_DEV_ROOT}/cli"
 
-# Helper function to run CLI (more reliable than string expansion)
-_run_cli() {
-  node "${FOREMAN_CLI_PATH}" "$@"
-}
-
+# ============================================================
 # Logging helpers
+# ============================================================
+
 log_info() {
-  if [ "${BOOTSTRAP_QUIET:-0}" != "1" ]; then
-    echo -e "${BLUE}ℹ${NC} $*" >&2
-  fi
+  echo -e "${BLUE}ℹ${NC} $*" >&2
 }
 
 log_success() {
-  if [ "${BOOTSTRAP_QUIET:-0}" != "1" ]; then
-    echo -e "${GREEN}✓${NC} $*" >&2
-  fi
+  echo -e "${GREEN}✓${NC} $*" >&2
 }
 
 log_warning() {
@@ -102,41 +84,33 @@ log_error() {
 }
 
 log_step() {
-  if [ "${BOOTSTRAP_QUIET:-0}" != "1" ]; then
-    echo -e "${CYAN}▸${NC} $*" >&2
-  fi
+  echo -e "${CYAN}▸${NC} $*" >&2
 }
 
 # ============================================================
 # CLI Detection Functions
 # ============================================================
 
-# Check if CLI binary exists
-check_cli_exists() {
-  [ -f "$FOREMAN_CLI_PATH" ]
+check_global_cli() {
+  command -v ralph-dev &> /dev/null
 }
 
-# Check if node_modules exists
-check_dependencies_installed() {
-  [ -d "${FOREMAN_CLI_DIR}/node_modules" ]
+get_global_version() {
+  ralph-dev --version 2>/dev/null || echo "unknown"
 }
 
-# Validate CLI is executable and works
+check_local_cli_exists() {
+  [ -f "$LOCAL_CLI_PATH" ]
+}
+
+check_local_dependencies_installed() {
+  [ -d "${LOCAL_CLI_DIR}/node_modules" ]
+}
+
 validate_cli() {
-  if [ ! -f "$FOREMAN_CLI_PATH" ]; then
-    return 1
-  fi
-
-  # Try to run CLI --version
-  if _run_cli --version > /dev/null 2>&1; then
-    return 0
-  else
-    log_error "CLI exists but failed to execute"
-    return 1
-  fi
+  ralph-dev --version > /dev/null 2>&1
 }
 
-# Check Node.js version compatibility
 check_node_version() {
   if ! command -v node &> /dev/null; then
     log_error "Node.js is not installed"
@@ -145,15 +119,13 @@ check_node_version() {
     return 1
   fi
 
-  local node_version
+  local node_version major_version
   node_version=$(node --version | sed 's/v//')
-  local major_version
   major_version=$(echo "$node_version" | cut -d. -f1)
 
   if [ "$major_version" -lt 18 ]; then
     log_error "Node.js version $node_version is too old"
     log_error "Ralph-dev requires Node.js >= 18.0.0"
-    log_error "Current version: $node_version"
     return 1
   fi
 
@@ -161,51 +133,70 @@ check_node_version() {
 }
 
 # ============================================================
-# Build Functions
+# Installation Functions
 # ============================================================
 
-# Install npm dependencies
-install_dependencies() {
-  log_step "Installing dependencies..."
+install_global_cli() {
+  log_step "Installing ralph-dev globally..."
 
-  cd "$FOREMAN_CLI_DIR"
+  echo ""
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${BOLD}📦 Installing Ralph-dev CLI${NC}"
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-  # Use npm ci if package-lock.json exists, otherwise npm install
-  if [ -f "package-lock.json" ]; then
-    if npm ci --silent --no-progress 2>&1 | grep -v "^npm WARN"; then
-      return 0
-    else
-      log_warning "npm ci failed, falling back to npm install"
-      npm install --silent --no-progress 2>&1 | grep -v "^npm WARN" || true
-    fi
-  else
-    npm install --silent --no-progress 2>&1 | grep -v "^npm WARN" || true
-  fi
-
-  if [ -d "node_modules" ]; then
-    log_success "Dependencies installed"
-    return 0
-  else
-    log_error "Failed to install dependencies"
+  if ! check_node_version; then
     return 1
   fi
+
+  if npm install -g "$RALPH_DEV_PACKAGE" 2>&1 | grep -v "^npm WARN"; then
+    if check_global_cli && validate_cli; then
+      log_success "Ralph-dev installed globally: $(get_global_version)"
+      return 0
+    fi
+  fi
+
+  log_warning "Global installation failed, will use local build fallback"
+  return 1
 }
 
-# Build TypeScript CLI
-build_typescript() {
+build_local_cli() {
+  echo ""
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${BOLD}🔧 Building Ralph-dev CLI (local)${NC}"
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+  if ! check_node_version; then
+    return 1
+  fi
+
+  if ! check_local_dependencies_installed; then
+    log_step "Installing dependencies..."
+    cd "$LOCAL_CLI_DIR"
+
+    if [ -f "package-lock.json" ]; then
+      npm ci --silent --no-progress 2>&1 | grep -v "^npm WARN" || \
+        npm install --silent --no-progress 2>&1 | grep -v "^npm WARN" || true
+    else
+      npm install --silent --no-progress 2>&1 | grep -v "^npm WARN" || true
+    fi
+
+    if [ ! -d "node_modules" ]; then
+      log_error "Failed to install dependencies"
+      return 1
+    fi
+    log_success "Dependencies installed"
+  fi
+
   log_step "Compiling TypeScript..."
+  cd "$LOCAL_CLI_DIR"
 
-  cd "$FOREMAN_CLI_DIR"
-
-  # Run TypeScript compiler
   if npm run build --silent 2>&1 | grep -E "error TS|Build failed" >&2; then
     log_error "TypeScript compilation failed"
     return 1
   fi
 
-  # Make output executable
-  if [ -f "$FOREMAN_CLI_PATH" ]; then
-    chmod +x "$FOREMAN_CLI_PATH"
+  if [ -f "$LOCAL_CLI_PATH" ]; then
+    chmod +x "$LOCAL_CLI_PATH"
     log_success "CLI compiled successfully"
     return 0
   else
@@ -214,102 +205,64 @@ build_typescript() {
   fi
 }
 
-# Full build process
-build_cli() {
-  if [ "${BOOTSTRAP_QUIET:-0}" != "1" ]; then
-    echo ""
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BOLD}🔧 Building Ralph-dev CLI${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  fi
-
-  # Check Node.js version first
-  if ! check_node_version; then
-    return 1
-  fi
-
-  # Install dependencies if needed
-  if ! check_dependencies_installed; then
-    if ! install_dependencies; then
-      return 1
-    fi
-  else
-    log_info "Dependencies already installed"
-  fi
-
-  # Build TypeScript
-  if ! build_typescript; then
-    return 1
-  fi
-
-  if [ "${BOOTSTRAP_QUIET:-0}" != "1" ]; then
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-  fi
-
-  return 0
-}
-
 # ============================================================
 # Main Bootstrap Logic
 # ============================================================
 
-bootstrap_ralph-dev_cli() {
+bootstrap_ralph_dev_cli() {
   local force_rebuild="${FORCE_REBUILD:-0}"
 
-  # Check if we should skip bootstrap
+  # Skip bootstrap if requested
   if [ "${SKIP_BOOTSTRAP:-0}" = "1" ]; then
     log_info "Bootstrap skipped (SKIP_BOOTSTRAP=1)"
     return 0
   fi
 
-  # Force rebuild if requested
-  if [ "$force_rebuild" = "1" ]; then
-    log_warning "Force rebuild requested (FORCE_REBUILD=1)"
-    if ! build_cli; then
-      log_error "CRITICAL: CLI build failed"
-      return 1
-    fi
-    if ! validate_cli; then
-      log_error "CRITICAL: CLI validation failed after build"
-      return 1
-    fi
-    log_success "CLI rebuilt and validated"
-    return 0
-  fi
+  # ═══════════════════════════════════════════
+  # OPTION 1: Use global CLI (preferred)
+  # ═══════════════════════════════════════════
 
-  # Check if CLI exists and works
-  if check_cli_exists; then
-    if validate_cli; then
-      # CLI exists and works - we're done
-      log_success "Ralph-dev CLI ready"
+  if [ "$force_rebuild" != "1" ]; then
+    if check_global_cli && validate_cli; then
+      log_success "Ralph-dev CLI ready (global: $(get_global_version))"
       return 0
-    else
-      # CLI exists but is broken - rebuild
-      log_warning "CLI exists but is not functional"
-      log_warning "Rebuilding..."
-      if ! build_cli; then
-        log_error "CRITICAL: CLI rebuild failed"
-        return 1
-      fi
-    fi
-  else
-    # CLI doesn't exist - build it
-    if [ "${BOOTSTRAP_QUIET:-0}" != "1" ]; then
-      log_info "Ralph-dev CLI not found (this is normal on first use)"
-    fi
-    if ! build_cli; then
-      log_error "CRITICAL: CLI build failed"
-      return 1
     fi
   fi
 
-  # Final validation
-  if validate_cli; then
-    log_success "Ralph-dev CLI ready"
-    return 0
-  else
-    log_error "CRITICAL: CLI validation failed after build"
+  # ═══════════════════════════════════════════
+  # OPTION 2: Install globally (if not forcing rebuild)
+  # ═══════════════════════════════════════════
+
+  if [ "$force_rebuild" != "1" ]; then
+    log_info "Ralph-dev CLI not found globally"
+
+    if install_global_cli; then
+      return 0
+    fi
+
+    log_warning "Falling back to local build..."
+  fi
+
+  # ═══════════════════════════════════════════
+  # OPTION 3: Use/build local CLI (fallback or forced)
+  # ═══════════════════════════════════════════
+
+  # Check if local CLI exists and works (unless forcing rebuild)
+  if [ "$force_rebuild" != "1" ] && check_local_cli_exists; then
+    ralph-dev() {
+      node "$LOCAL_CLI_PATH" "$@"
+    }
+    export -f ralph-dev
+
+    if validate_cli; then
+      log_success "Ralph-dev CLI ready (local build)"
+      return 0
+    fi
+  fi
+
+  # Build local CLI
+  if ! build_local_cli; then
+    log_error "CRITICAL: CLI build failed"
     log_error ""
     log_error "Please report this issue:"
     log_error "  https://github.com/mylukin/ralph-dev/issues"
@@ -320,36 +273,46 @@ bootstrap_ralph-dev_cli() {
     log_error "  - OS: $(uname -s) $(uname -r)"
     return 1
   fi
+
+  # Create wrapper function for local CLI
+  ralph-dev() {
+    node "$LOCAL_CLI_PATH" "$@"
+  }
+  export -f ralph-dev
+
+  if validate_cli; then
+    log_success "Ralph-dev CLI ready (local build)"
+    return 0
+  else
+    log_error "CRITICAL: CLI validation failed after build"
+    return 1
+  fi
 }
 
 # ============================================================
 # Exported Functions
 # ============================================================
 
-# Create ralph-dev wrapper function for use in skills
-ralph-dev() {
-  _run_cli "$@"
-}
-
-# Export functions for use in bash scripts
-export -f _run_cli
-export -f ralph-dev
+if ! command -v ralph-dev &> /dev/null; then
+  ralph-dev() {
+    if [ -f "$LOCAL_CLI_PATH" ]; then
+      node "$LOCAL_CLI_PATH" "$@"
+    else
+      log_error "ralph-dev CLI not found"
+      return 1
+    fi
+  }
+  export -f ralph-dev
+fi
 
 # ============================================================
 # Auto-Execute Bootstrap
 # ============================================================
 
-# Run bootstrap automatically when sourced
-# Can be disabled by setting SKIP_BOOTSTRAP=1
-
-# Check if script is being sourced (safely handle BASH_SOURCE)
 if [ -n "${BASH_SOURCE[0]:-}" ] && [ "${BASH_SOURCE[0]}" != "${0}" ]; then
-  # Script is being sourced, run bootstrap
-  bootstrap_ralph-dev_cli
+  bootstrap_ralph_dev_cli
 elif [ -z "${BASH_SOURCE[0]:-}" ]; then
-  # BASH_SOURCE not available (sourced in some shells), run bootstrap
-  bootstrap_ralph-dev_cli
+  bootstrap_ralph_dev_cli
 else
-  # Script is being executed directly (for testing)
-  echo "Bootstrap script loaded. Run: bootstrap_ralph-dev_cli"
+  echo "Bootstrap script loaded. Run: bootstrap_ralph_dev_cli"
 fi

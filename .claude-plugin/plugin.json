@@ -41,6 +41,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hooks/stop-hook.sh"
+          }
+        ]
+      }
     ]
   }
 }

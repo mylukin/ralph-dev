@@ -325,35 +325,27 @@ Ralph-dev 自动检测项目的语言并配置验证命令：
 
 ## 配置
 
-Ralph-dev 可以通过环境变量或 `.claude/CLAUDE.md` 文件进行配置。
+Ralph-dev 可以通过环境变量进行配置。详见[配置指南](docs/CONFIGURATION.md)。
 
 ### 环境变量
 
-```bash
-# 交付后自动清理（默认：ask）
-export RALPH_DEV_AUTO_CLEANUP=true   # 自动清理临时文件
-export RALPH_DEV_AUTO_CLEANUP=false  # 保留所有文件
-export RALPH_DEV_AUTO_CLEANUP=ask    # 询问用户（默认）
+| 变量 | 用途 | 默认值 |
+|------|------|--------|
+| `CI` | 启用 CI 模式运行测试（非交互） | - |
+| `RALPH_DEV_WORKSPACE` | 覆盖工作区目录 | `process.cwd()` |
 
-# 基线测试验证（默认：false）
-export RALPH_DEV_SKIP_BASELINE=true  # 跳过基线测试
-export RALPH_DEV_SKIP_BASELINE=false # 运行基线测试（推荐）
+### CI/CD 配置
+
+对于 CI/CD 自动化，使用 `.ralph-dev/ci-config.yml`：
+
+```yaml
+ci_mode:
+  enabled: true
+  auto_approve_breakdown: true
+  limits:
+    max_tasks: 50
+    max_total_time: "4h"
 ```
-
-### CLAUDE.md 配置
-
-在 `.claude/CLAUDE.md` 中添加项目特定设置：
-
-```markdown
-# Ralph-dev 配置
-
-```bash
-export RALPH_DEV_AUTO_CLEANUP=true
-export RALPH_DEV_SKIP_BASELINE=false
-```
-```
-
-详见[配置指南](docs/CONFIGURATION.md)。
 
 ### Git 配置
 将 `.ralph-dev/` 目录添加到 `.gitignore`：
