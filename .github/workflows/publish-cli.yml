@@ -9,6 +9,11 @@ jobs:
   publish:
     runs-on: ubuntu-latest
 
+    # Required for npm Trusted Publisher (OIDC)
+    permissions:
+      id-token: write    # For npm provenance
+      contents: write    # For GitHub Release
+
     defaults:
       run:
         working-directory: cli
@@ -56,13 +61,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm (Trusted Publisher)
+        run: npm publish --provenance --access public
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: CLI v${{ steps.version.outputs.version }}
           body: |
@@ -76,5 +79,3 @@ jobs:
             ### Changelog
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/cli/CHANGELOG.md) for details.
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

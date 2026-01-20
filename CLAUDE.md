@@ -91,8 +91,17 @@ GitHub Actions (`.github/workflows/publish-cli.yml`) will automatically:
 1. Verify tag version matches `package.json`
 2. Run tests and lint
 3. Build the CLI
-4. Publish to npm
+4. Publish to npm (using Trusted Publisher / OIDC)
 5. Create GitHub Release
+
+### npm Trusted Publisher Setup (One-time)
+
+Configure on [npmjs.com](https://www.npmjs.com) → Package Settings → Publishing access:
+1. Select "ralph-dev" package
+2. Add Trusted Publisher:
+   - **Repository**: `mylukin/ralph-dev`
+   - **Workflow**: `publish-cli.yml`
+   - **Environment**: (leave empty)
 
 ### Version Guidelines
 
