@@ -42,7 +42,9 @@ temp/
 .ralph-dev/state.json
 .ralph-dev/progress.log
 .ralph-dev/debug.log
+.ralph-dev/saga.log
 .ralph-dev/tasks/index.json
+.ralph-dev/backups/
 
 # Keep PRD and task definitions (valuable documentation)
 !.ralph-dev/prd.md
