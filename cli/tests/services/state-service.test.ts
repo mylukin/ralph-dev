@@ -21,7 +21,7 @@ class MockStateRepository implements IStateRepository {
     });
   }
 
-  async update(updates: import('./state-service').StateUpdate): Promise<void> {
+  async update(updates: StateUpdate): Promise<void> {
     if (!this.state) {
       throw new Error('No state to update');
     }
@@ -210,53 +210,6 @@ describe('StateService', () => {
     });
   });
 
-  describe('transitionToPhase', () => {
-    it('should transition from clarify to breakdown', async () => {
-      // Arrange
-      await service.initializeState('clarify');
-
-      // Act
-      const result = await service.transitionToPhase('breakdown');
-
-      // Assert
-      expect(result.phase).toBe('breakdown');
-    });
-
-    it('should throw error for invalid transition', async () => {
-      // Arrange
-      await service.initializeState('clarify');
-
-      // Act & Assert
-      await expect(service.transitionToPhase('deliver')).rejects.toThrow(
-        'Cannot transition from clarify to deliver'
-      );
-    });
-
-    it('should throw error when state does not exist', async () => {
-      // Act & Assert
-      await expect(service.transitionToPhase('breakdown')).rejects.toThrow(
-        'State not found. Initialize state first.'
-      );
-    });
-
-    it('should log phase transition', async () => {
-      // Arrange
-      await service.initializeState('clarify');
-      logger.clear();
-
-      // Act
-      await service.transitionToPhase('breakdown');
-
-      // Assert
-      expect(logger.logs.some((l) => l.level === 'info' && l.message.includes('Transitioning'))).toBe(
-        true
-      );
-      expect(logger.logs.some((l) => l.level === 'info' && l.message.includes('Transitioned'))).toBe(
-        true
-      );
-    });
-  });
-
   describe('setCurrentTask', () => {
     beforeEach(async () => {
       await service.initializeState();
@@ -287,118 +240,6 @@ describe('StateService', () => {
 
       // Act & Assert
       await expect(service.setCurrentTask('test.task')).rejects.toThrow(
-        'State not found. Initialize state first.'
-      );
-    });
-  });
-
-  describe('setPrd', () => {
-    beforeEach(async () => {
-      await service.initializeState();
-    });
-
-    it('should set PRD', async () => {
-      // Arrange
-      const prd = {
-        title: 'Test PRD',
-        description: 'Test description',
-        userStories: ['Story 1', 'Story 2'],
-      };
-
-      // Act
-      const result = await service.setPrd(prd);
-
-      // Assert
-      expect(result.prd).toEqual(prd);
-    });
-
-    it('should throw error when state does not exist', async () => {
-      // Arrange
-      await service.clearState();
-
-      // Act & Assert
-      await expect(service.setPrd({ title: 'Test' })).rejects.toThrow(
-        'State not found. Initialize state first.'
-      );
-    });
-  });
-
-  describe('addError', () => {
-    beforeEach(async () => {
-      await service.initializeState();
-    });
-
-    it('should add error to error list', async () => {
-      // Arrange
-      const error = {
-        message: 'Test error',
-        code: 'ERR001',
-      };
-
-      // Act
-      const result = await service.addError(error);
-
-      // Assert
-      expect(result.errors).toContainEqual(error);
-    });
-
-    it('should add multiple errors', async () => {
-      // Arrange
-      const error1 = { message: 'Error 1', code: 'ERR1' };
-      const error2 = { message: 'Error 2', code: 'ERR2' };
-
-      // Act
-      await service.addError(error1);
-      const result = await service.addError(error2);
-
-      // Assert
-      expect(result.errors).toHaveLength(2);
-      expect(result.errors).toContainEqual(error1);
-      expect(result.errors).toContainEqual(error2);
-    });
-
-    it('should throw error when state does not exist', async () => {
-      // Arrange
-      await service.clearState();
-
-      // Act & Assert
-      await expect(service.addError({ message: 'Test' })).rejects.toThrow(
-        'State not found. Initialize state first.'
-      );
-    });
-  });
-
-  describe('clearErrors', () => {
-    beforeEach(async () => {
-      await service.initializeState();
-    });
-
-    it('should clear all errors', async () => {
-      // Arrange
-      await service.addError({ message: 'Error 1' });
-      await service.addError({ message: 'Error 2' });
-
-      // Act
-      const result = await service.clearErrors();
-
-      // Assert
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('should handle clearing when no errors exist', async () => {
-      // Act
-      const result = await service.clearErrors();
-
-      // Assert
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('should throw error when state does not exist', async () => {
-      // Arrange
-      await service.clearState();
-
-      // Act & Assert
-      await expect(service.clearErrors()).rejects.toThrow(
         'State not found. Initialize state first.'
       );
     });

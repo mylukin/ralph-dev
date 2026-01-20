@@ -1303,11 +1303,14 @@ testRequirements:
         },
       });
 
-      // Create state file
+      // Create state file with required date fields
       fs.ensureDirSync(path.join(testDir, '.ralph-dev'));
+      const now = new Date().toISOString();
       fs.writeJSONSync(path.join(testDir, '.ralph-dev', 'state.json'), {
         phase: 'implement',
         currentTask: null,
+        startedAt: now,
+        updatedAt: now,
       });
 
       // Create progress log
@@ -1364,7 +1367,8 @@ testRequirements:
       const jsonOutput = consoleLogSpy.mock.calls[0]?.[0];
       if (jsonOutput) {
         const parsed = JSON.parse(jsonOutput);
-        expect(parsed.error || parsed.task === null).toBeTruthy();
+        // Response uses successResponse wrapper: { success: true, data: { task: null, ... } }
+        expect(parsed.error || parsed.data?.task === null).toBeTruthy();
       }
     });
   });

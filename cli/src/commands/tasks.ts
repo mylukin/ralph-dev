@@ -1,101 +1,15 @@
 import { Command } from 'commander';
 import * as path from 'path';
-import * as fs from 'fs-extra';
-import { execSync } from 'child_process';
 import chalk from 'chalk';
-import { IIndexRepository } from '../repositories/index-repository';
-import { FileSystemIndexRepository } from '../repositories/index-repository.service';
-import { FileSystemService } from '../infrastructure/file-system.service';
 import { ExitCode } from '../core/exit-codes';
 import { handleError, Errors } from '../core/error-handler';
 import { successResponse, outputResponse } from '../core/response-wrapper';
-import { createTaskService } from './service-factory';
+import { createTaskService, createContextService } from './service-factory';
 import { Task } from '../domain/task-entity';
+import { TaskContext } from '../services/context-service';
+import { FileSystemIndexRepository } from '../repositories/index-repository.service';
+import { FileSystemService } from '../infrastructure/file-system.service';
 
-/**
- * Helper function to gather context for next task display
- */
-async function gatherContext(workspaceDir: string, indexRepository: IIndexRepository, task: Task): Promise<any> {
-  const context: any = {};
-
-  // Current directory
-  context.currentDirectory = process.cwd();
-
-  // Git information
-  try {
-    const gitBranch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim();
-    const gitLog = execSync('git log -1 --pretty=format:"%h|%s|%ar"', { encoding: 'utf-8' }).trim();
-    const [hash, message, time] = gitLog.split('|');
-    context.git = {
-      branch: gitBranch,
-      lastCommit: { hash, message, time },
-    };
-  } catch (error) {
-    context.git = { error: 'Not a git repository or no commits' };
-  }
-
-  // State context
-  const stateFile = path.join(workspaceDir, '.ralph-dev', 'state.json');
-  if (fs.existsSync(stateFile)) {
-    context.state = fs.readJSONSync(stateFile);
-  }
-
-  // Progress statistics
-  const index = await indexRepository.read();
-  const allTasks = Object.entries(index.tasks);
-  const completed = allTasks.filter(([, t]) => t.status === 'completed').length;
-  const failed = allTasks.filter(([, t]) => t.status === 'failed').length;
-  const inProgress = allTasks.filter(([, t]) => t.status === 'in_progress').length;
-  const pending = allTasks.filter(([, t]) => t.status === 'pending').length;
-  const total = allTasks.length;
-
-  context.progress = {
-    completed,
-    failed,
-    inProgress,
-    pending,
-    total,
-    percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
-  };
-
-  // Recent activity from progress.log
-  const progressLog = path.join(workspaceDir, '.ralph-dev', 'progress.log');
-  context.recentActivity = [];
-  if (fs.existsSync(progressLog)) {
-    try {
-      const logContent = fs.readFileSync(progressLog, 'utf-8');
-      const lines = logContent.trim().split('\n');
-      context.recentActivity = lines.slice(-5);
-    } catch (error) {
-      context.recentActivity = ['Unable to read progress log'];
-    }
-  }
-
-  // Check task dependencies
-  const dependencyStatus: any[] = [];
-  if (task.dependencies && task.dependencies.length > 0) {
-    task.dependencies.forEach(depId => {
-      const depTask = index.tasks[depId];
-      if (depTask) {
-        dependencyStatus.push({
-          id: depId,
-          status: depTask.status,
-          satisfied: depTask.status === 'completed',
-        });
-      } else {
-        dependencyStatus.push({
-          id: depId,
-          status: 'unknown',
-          satisfied: false,
-        });
-      }
-    });
-  }
-
-  context.dependencyStatus = dependencyStatus;
-
-  return context;
-}
 
 /**
  * Helper function to format next task output
@@ -176,9 +90,12 @@ function formatNextTaskOutput(task: Task, context: any): void {
 
 export function registerTaskCommands(program: Command, workspaceDir: string): void {
   const tasksDir = path.join(workspaceDir, '.ralph-dev', 'tasks');
+  const taskService = createTaskService(workspaceDir);
+  const contextService = createContextService(workspaceDir);
+
+  // IndexRepository is used only for tasks init command (metadata updates)
   const fileSystem = new FileSystemService();
   const indexRepository = new FileSystemIndexRepository(fileSystem, tasksDir);
-  const taskService = createTaskService(workspaceDir);
 
   const tasks = program.command('tasks').description('Manage tasks');
 
@@ -312,16 +229,18 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
         const task = await taskService.getNextTask();
 
         if (!task) {
-          if (options.json) {
-            console.log(JSON.stringify({ error: 'No pending tasks' }, null, 2));
-          } else {
+          // Return proper response structure with success: true, task: null
+          // Exit code SUCCESS since "no pending tasks" is a valid state, not an error
+          const response = successResponse({ task: null, message: 'No pending tasks available' });
+          outputResponse(response, options.json, () => {
             console.log(chalk.yellow('No pending tasks'));
-          }
+          });
+          process.exit(ExitCode.SUCCESS);
           return;
         }
 
-        // Gather context (keep in command for now - presentation logic)
-        const context = await gatherContext(workspaceDir, indexRepository, task);
+        // Gather context using ContextService
+        const context = await contextService.gatherTaskContext(task);
 
         // Format output
         if (options.json) {
@@ -329,6 +248,7 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
         } else {
           formatNextTaskOutput(task, context);
         }
+        process.exit(ExitCode.SUCCESS);
       } catch (error) {
         handleError(error as any, options.json);
       }
@@ -605,7 +525,8 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
         // Get agent output from file or text
         let agentOutput: string;
         if (options.file) {
-          agentOutput = fs.readFileSync(options.file, 'utf-8');
+          const content = await fileSystem.readFile(options.file, 'utf-8');
+          agentOutput = typeof content === 'string' ? content : content.toString('utf-8');
         } else if (options.text) {
           agentOutput = options.text;
         } else {

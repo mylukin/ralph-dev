@@ -1,131 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { TaskService, CreateTaskInput, BatchOperation } from '../../src/services/task-service';
 import { Task } from '../../src/domain/task-entity';
-import { ITaskRepository, TaskFilter } from '../../src/repositories/task-repository';
-import { IStateRepository, StateUpdate, StateConfig } from '../../src/repositories/state-repository';
 import { State } from '../../src/domain/state-entity';
-import { ILogger } from '../../src/infrastructure/logger';
-
-/**
- * Mock TaskRepository for testing
- */
-class MockTaskRepository implements ITaskRepository {
-  private tasks = new Map<string, Task>();
-
-  async findById(id: string): Promise<Task | null> {
-    return this.tasks.get(id) || null;
-  }
-
-  async findAll(filter?: TaskFilter): Promise<Task[]> {
-    let tasks = Array.from(this.tasks.values());
-
-    if (filter?.status) {
-      tasks = tasks.filter((t) => t.status === filter.status);
-    }
-    if (filter?.module) {
-      tasks = tasks.filter((t) => t.module === filter.module);
-    }
-    if (filter?.priority !== undefined) {
-      tasks = tasks.filter((t) => t.priority === filter.priority);
-    }
-    if (filter?.hasDependencies) {
-      tasks = tasks.filter((t) => t.dependencies && t.dependencies.length > 0);
-    }
-
-    return tasks;
-  }
-
-  async save(task: Task): Promise<void> {
-    this.tasks.set(task.id, task);
-  }
-
-  async delete(id: string): Promise<void> {
-    this.tasks.delete(id);
-  }
-
-  async exists(id: string): Promise<boolean> {
-    return this.tasks.has(id);
-  }
-
-  // Test helper
-  addTask(task: Task): void {
-    this.tasks.set(task.id, task);
-  }
-
-  clear(): void {
-    this.tasks.clear();
-  }
-}
-
-/**
- * Mock StateRepository for testing
- */
-class MockStateRepository implements IStateRepository {
-  private state: State | null = null;
-
-  async get(): Promise<State | null> {
-    return this.state;
-  }
-
-  async set(stateConfig: Omit<StateConfig, 'updatedAt'>): Promise<void> {
-    this.state = State.fromJSON({
-      ...stateConfig,
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
-  async update(updates: StateUpdate): Promise<void> {
-    if (!this.state) {
-      throw new Error('No state to update');
-    }
-    if (updates.currentTask !== undefined) {
-      this.state.setCurrentTask(updates.currentTask);
-    }
-    if (updates.phase) {
-      this.state.transitionTo(updates.phase);
-    }
-  }
-
-  async clear(): Promise<void> {
-    this.state = null;
-  }
-
-  async exists(): Promise<boolean> {
-    return this.state !== null;
-  }
-
-  // Test helper
-  setState(state: State): void {
-    this.state = state;
-  }
-}
-
-/**
- * Mock Logger for testing
- */
-class MockLogger implements ILogger {
-  logs: Array<{ level: string; message: string; meta?: any }> = [];
-
-  debug(message: string, meta?: any): void {
-    this.logs.push({ level: 'debug', message, meta });
-  }
-
-  info(message: string, meta?: any): void {
-    this.logs.push({ level: 'info', message, meta });
-  }
-
-  warn(message: string, meta?: any): void {
-    this.logs.push({ level: 'warn', message, meta });
-  }
-
-  error(message: string, meta?: any): void {
-    this.logs.push({ level: 'error', message, meta });
-  }
-
-  clear(): void {
-    this.logs = [];
-  }
-}
+import { MockTaskRepository, MockStateRepository, MockLogger } from '../../src/test-utils';
 
 describe('TaskService', () => {
   let taskRepo: MockTaskRepository;
@@ -202,7 +79,7 @@ describe('TaskService', () => {
         dependencies: [],
         notes: '',
       });
-      taskRepo.addTask(existing);
+      await taskRepo.save(existing);
 
       const input: CreateTaskInput = {
         id: 'duplicate.task',
@@ -226,16 +103,8 @@ describe('TaskService', () => {
       await service.createTask(input);
 
       // Assert
-      expect(logger.logs).toContainEqual({
-        level: 'info',
-        message: 'Creating task: test.task',
-        meta: undefined,
-      });
-      expect(logger.logs).toContainEqual({
-        level: 'info',
-        message: 'Task created: test.task',
-        meta: undefined,
-      });
+      expect(logger.wasInfoCalledWith('Creating task: test.task')).toBe(true);
+      expect(logger.wasInfoCalledWith('Task created: test.task')).toBe(true);
     });
   });
 
@@ -253,7 +122,7 @@ describe('TaskService', () => {
         dependencies: [],
         notes: '',
       });
-      taskRepo.addTask(task);
+      await taskRepo.save(task);
 
       // Act
       const result = await service.getTask('existing.task');
@@ -273,9 +142,9 @@ describe('TaskService', () => {
   });
 
   describe('listTasks', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       // Add sample tasks
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task1',
           module: 'auth',
@@ -288,7 +157,7 @@ describe('TaskService', () => {
           notes: '',
         })
       );
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task2',
           module: 'auth',
@@ -301,7 +170,7 @@ describe('TaskService', () => {
           notes: '',
         })
       );
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task3',
           module: 'api',
@@ -432,7 +301,7 @@ describe('TaskService', () => {
   describe('getNextTask', () => {
     it('should return highest priority task with no dependencies', async () => {
       // Arrange
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task1',
           module: 'test',
@@ -445,7 +314,7 @@ describe('TaskService', () => {
           notes: '',
         })
       );
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task2',
           module: 'test',
@@ -469,7 +338,7 @@ describe('TaskService', () => {
 
     it('should skip tasks with unsatisfied dependencies', async () => {
       // Arrange
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task1',
           module: 'test',
@@ -482,7 +351,7 @@ describe('TaskService', () => {
           notes: '',
         })
       );
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task2',
           module: 'test',
@@ -506,7 +375,7 @@ describe('TaskService', () => {
 
     it('should return task with satisfied dependencies', async () => {
       // Arrange
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task1',
           module: 'test',
@@ -519,7 +388,7 @@ describe('TaskService', () => {
           notes: '',
         })
       );
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task2',
           module: 'test',
@@ -543,7 +412,7 @@ describe('TaskService', () => {
 
     it('should return null when no pending tasks', async () => {
       // Arrange
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task1',
           module: 'test',
@@ -566,7 +435,7 @@ describe('TaskService', () => {
 
     it('should return null when all tasks are blocked', async () => {
       // Arrange
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task1',
           module: 'test',
@@ -579,7 +448,7 @@ describe('TaskService', () => {
           notes: '',
         })
       );
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task2',
           module: 'test',
@@ -615,7 +484,7 @@ describe('TaskService', () => {
         dependencies: [],
         notes: '',
       });
-      taskRepo.addTask(task);
+      await taskRepo.save(task);
 
       const state = State.createNew();
       stateRepo.setState(state);
@@ -641,16 +510,14 @@ describe('TaskService', () => {
         dependencies: [],
         notes: '',
       });
-      taskRepo.addTask(task);
+      await taskRepo.save(task);
 
       // Act
       const result = await service.startTask('test.task');
 
       // Assert
       expect(result.status).toBe('in_progress');
-      expect(logger.logs.some((l) => l.level === 'warn' && l.message.includes('already in progress'))).toBe(
-        true
-      );
+      expect(logger.warnCalls.some((l) => l.message.includes('already in progress'))).toBe(true);
     });
 
     it('should throw error when task not found', async () => {
@@ -673,7 +540,7 @@ describe('TaskService', () => {
         dependencies: [],
         notes: '',
       });
-      taskRepo.addTask(task);
+      await taskRepo.save(task);
 
       const state = State.createNew();
       stateRepo.setState(state);
@@ -701,7 +568,7 @@ describe('TaskService', () => {
         dependencies: [],
         notes: '',
       });
-      taskRepo.addTask(task);
+      await taskRepo.save(task);
 
       // Act
       const result = await service.completeTask('test.task');
@@ -724,7 +591,7 @@ describe('TaskService', () => {
         dependencies: [],
         notes: '',
       });
-      taskRepo.addTask(task);
+      await taskRepo.save(task);
 
       // Act
       const result = await service.completeTask('test.task', '5m30s');
@@ -747,16 +614,14 @@ describe('TaskService', () => {
         dependencies: [],
         notes: '',
       });
-      taskRepo.addTask(task);
+      await taskRepo.save(task);
 
       // Act
       const result = await service.completeTask('test.task');
 
       // Assert
       expect(result.status).toBe('completed');
-      expect(logger.logs.some((l) => l.level === 'warn' && l.message.includes('already completed'))).toBe(
-        true
-      );
+      expect(logger.warnCalls.some((l) => l.message.includes('already completed'))).toBe(true);
     });
 
     it('should throw error when task not found', async () => {
@@ -781,7 +646,7 @@ describe('TaskService', () => {
         dependencies: [],
         notes: '',
       });
-      taskRepo.addTask(task);
+      await taskRepo.save(task);
 
       // Act
       const result = await service.failTask('test.task', 'Build error');
@@ -811,23 +676,23 @@ describe('TaskService', () => {
         dependencies: [],
         notes: '',
       });
-      taskRepo.addTask(task);
+      await taskRepo.save(task);
 
       // Act
       await service.failTask('test.task', 'Build error');
 
       // Assert
       expect(
-        logger.logs.some(
-          (l) => l.level === 'error' && l.message.includes('Task failed') && l.meta?.reason === 'Build error'
+        logger.errorCalls.some(
+          (l) => l.message.includes('Task failed') && (l.error as Record<string, unknown>)?.reason === 'Build error'
         )
       ).toBe(true);
     });
   });
 
   describe('batchOperations', () => {
-    beforeEach(() => {
-      taskRepo.addTask(
+    beforeEach(async () => {
+      await taskRepo.save(
         new Task({
           id: 'task1',
           module: 'test',
@@ -840,7 +705,7 @@ describe('TaskService', () => {
           notes: '',
         })
       );
-      taskRepo.addTask(
+      await taskRepo.save(
         new Task({
           id: 'task2',
           module: 'test',

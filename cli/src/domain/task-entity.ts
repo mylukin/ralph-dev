@@ -194,53 +194,10 @@ export class Task {
   }
 
   /**
-   * Check if task is over estimate
-   * @returns true if actual duration exceeds estimated duration
-   */
-  isOverEstimate(): boolean {
-    const actualDuration = this.getActualDuration();
-
-    if (!actualDuration || !this.estimatedMinutes) {
-      return false;
-    }
-
-    return actualDuration > this.estimatedMinutes;
-  }
-
-  /**
-   * Get completion percentage (0-100)
-   * Based on status only (not actual progress tracking)
-   * @returns 0 for pending, 50 for in_progress, 100 for completed
-   */
-  getCompletionPercentage(): number {
-    switch (this._status) {
-      case 'pending':
-        return 0;
-      case 'in_progress':
-        return 50;
-      case 'completed':
-        return 100;
-      case 'failed':
-        return 0;
-      case 'blocked':
-        return 0;
-      default:
-        return 0;
-    }
-  }
-
-  /**
    * Check if task is terminal (completed or failed)
    */
   isTerminal(): boolean {
     return this._status === 'completed' || this._status === 'failed';
-  }
-
-  /**
-   * Check if task has dependencies
-   */
-  hasDependencies(): boolean {
-    return this.dependencies.length > 0;
   }
 
   /**

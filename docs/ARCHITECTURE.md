@@ -353,9 +353,9 @@ Comprehensive architecture documentation with text-based flowcharts for the auto
 │   │                    COMMANDS LAYER                                │   │
 │   │                    (cli/src/commands/)                           │   │
 │   │                                                                  │   │
-│   │   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │   │
-│   │   │ state.ts │  │ tasks.ts │  │detect.ts │  │  init.ts │        │   │
-│   │   └──────────┘  └──────────┘  └──────────┘  └──────────┘        │   │
+│   │   ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │   │
+│   │   │state.ts │ │tasks.ts │ │detect.ts│ │ init.ts │ │status.ts│  │   │
+│   │   └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘  │   │
 │   │                                                                  │   │
 │   │   Responsibility: Parse args, call services, format output       │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
@@ -367,9 +367,9 @@ Comprehensive architecture documentation with text-based flowcharts for the auto
 │   │                   (cli/src/services/)                            │   │
 │   │                                                                  │   │
 │   │   ┌────────────────┐  ┌────────────────┐  ┌─────────────────┐   │   │
-│   │   │ StateService   │  │ TaskService    │  │ HealingService  │   │   │
-│   │   │ - transitions  │  │ - lifecycle    │  │ - circuit break │   │   │
-│   │   │ - validation   │  │ - dependencies │  │ - retry logic   │   │   │
+│   │   │ StateService   │  │ TaskService    │  │ StatusService   │   │   │
+│   │   │ - updateState  │  │ - lifecycle    │  │ - summary       │   │   │
+│   │   │ - validation   │  │ - dependencies │  │ - progress      │   │   │
 │   │   └────────────────┘  └────────────────┘  └─────────────────┘   │   │
 │   │                                                                  │   │
 │   │   Responsibility: Business logic, validation, orchestration      │   │
@@ -415,14 +415,11 @@ Comprehensive architecture documentation with text-based flowcharts for the auto
 │   │                 INFRASTRUCTURE LAYER                             │   │
 │   │                 (cli/src/infrastructure/)                        │   │
 │   │                                                                  │   │
-│   │   ┌────────────────┐  ┌────────────────┐  ┌────────────────┐    │   │
-│   │   │ FileSystem     │  │ GitService     │  │ Logger         │    │   │
-│   │   │ .service.ts    │  │ .service.ts    │  │ .service.ts    │    │   │
-│   │   └────────────────┘  └────────────────┘  └────────────────┘    │   │
-│   │   ┌────────────────┐  ┌────────────────┐                        │   │
-│   │   │ retry.ts       │  │ circuit-       │                        │   │
-│   │   │ (exp backoff)  │  │ breaker.ts     │                        │   │
-│   │   └────────────────┘  └────────────────┘                        │   │
+│   │   ┌──────────────────────────┐  ┌────────────────────────────┐  │   │
+│   │   │ FileSystem.service.ts    │  │ Logger.service.ts          │  │   │
+│   │   │ - readFile/writeFile     │  │ - debug/info/warn/error    │  │   │
+│   │   │ - ensureDir/remove       │  │ - logging abstraction      │  │   │
+│   │   └──────────────────────────┘  └────────────────────────────┘  │   │
 │   │                                                                  │   │
 │   │   Responsibility: File I/O, logging, retry, external systems     │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
@@ -748,12 +745,13 @@ ralph-dev/
 │   │   │   ├── tasks.ts              #   Task management commands
 │   │   │   ├── detect.ts             #   Language detection
 │   │   │   ├── init.ts               #   Initialize workspace
+│   │   │   ├── status.ts             #   Status summary
 │   │   │   └── service-factory.ts    #   Dependency injection
 │   │   │
 │   │   ├── services/                 # [Layer 2: Services]
-│   │   │   ├── state-service.ts      #   Phase transitions
+│   │   │   ├── state-service.ts      #   State management
 │   │   │   ├── task-service.ts       #   Task lifecycle
-│   │   │   ├── healing-service.ts    #   Error recovery
+│   │   │   ├── status-service.ts     #   Status summary
 │   │   │   └── detection-service.ts  #   Lang detection logic
 │   │   │
 │   │   ├── repositories/             # [Layer 3: Repositories]
@@ -766,10 +764,8 @@ ralph-dev/
 │   │   │   └── task-entity.ts        #   Task with lifecycle
 │   │   │
 │   │   ├── infrastructure/           # [Layer 5: Infrastructure]
-│   │   │   ├── file-system.service.ts #   Retry-wrapped I/O
-│   │   │   ├── logger.service.ts      #   Logging
-│   │   │   ├── retry.ts               #   Exponential backoff
-│   │   │   └── circuit-breaker.ts     #   Failure isolation
+│   │   │   ├── file-system.service.ts #   File I/O operations
+│   │   │   └── logger.service.ts      #   Logging
 │   │   │
 │   │   ├── core/                     # Utilities
 │   │   │   ├── task-parser.ts        #   YAML frontmatter parser
@@ -996,21 +992,17 @@ ralph-dev/
 │                         │   OPEN   │                                    │
 │                         └──────────┘                                    │
 │                                                                         │
-│   Usage in HealingService:                                              │
+│   Usage in Phase 4 Skill (ralph-dev:phase-4-heal):                      │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │ class HealingService {                                          │   │
-│   │   private circuitBreaker = new CircuitBreaker({                 │   │
-│   │     failureThreshold: 5,                                        │   │
-│   │     resetTimeout: 60000  // 60 seconds                          │   │
-│   │   });                                                           │   │
-│   │                                                                 │   │
-│   │   async heal(task, error): Promise<HealResult> {                │   │
-│   │     if (this.circuitBreaker.isOpen()) {                         │   │
-│   │       return { status: 'circuit_open', task: task.id };         │   │
-│   │     }                                                           │   │
-│   │     // ... healing logic ...                                    │   │
-│   │   }                                                             │   │
-│   │ }                                                               │   │
+│   │ // Circuit breaker logic is implemented in skill workflow:      │   │
+│   │ // - Track consecutive failures per task                        │   │
+│   │ // - After 5 failures: mark task as failed, skip to next        │   │
+│   │ // - 60 second cooldown before retry                            │   │
+│   │ //                                                              │   │
+│   │ // Healing is handled by skills, not CLI services:              │   │
+│   │ // 1. Skills invoke: ralph-dev tasks fail <id> --reason "..."   │   │
+│   │ // 2. Skills track failure count in skill context               │   │
+│   │ // 3. Skills decide when to open circuit (skip task)            │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘

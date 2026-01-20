@@ -95,4 +95,43 @@ if [ -n "$CLAUDE_ENV_FILE" ] && [ -f "$CLAUDE_ENV_FILE" ]; then
   echo "export RALPH_DEV_WORKSPACE=\"${TARGET_DIR}\"" >> "$CLAUDE_ENV_FILE"
 fi
 
+# Auto-recovery: Query and display current state for context awareness
+# This helps Claude understand the current workflow state at session start
+if command -v ralph-dev &> /dev/null && [ -d "${TARGET_DIR}/.ralph-dev" ]; then
+  STATE_JSON=$(ralph-dev state get --json 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$STATE_JSON" ]; then
+    PHASE=$(echo "$STATE_JSON" | jq -r '.phase // "none"' 2>/dev/null)
+    CURRENT_TASK=$(echo "$STATE_JSON" | jq -r '.currentTask // "none"' 2>/dev/null)
+
+    if [ "$PHASE" != "none" ] && [ "$PHASE" != "null" ] && [ -n "$PHASE" ]; then
+      echo ""
+      echo "[ralph-dev] Active session detected"
+      echo "  Phase: ${PHASE}"
+      echo "  Current Task: ${CURRENT_TASK}"
+
+      # Query task progress
+      TASKS_JSON=$(ralph-dev tasks list --json 2>/dev/null)
+      if [ $? -eq 0 ]; then
+        TOTAL=$(echo "$TASKS_JSON" | jq -r '.data.total // 0' 2>/dev/null)
+        COMPLETED=$(echo "$TASKS_JSON" | jq -r '.data.completed // 0' 2>/dev/null)
+        PENDING=$(echo "$TASKS_JSON" | jq -r '.data.pending // 0' 2>/dev/null)
+        IN_PROGRESS=$(echo "$TASKS_JSON" | jq -r '.data.in_progress // 0' 2>/dev/null)
+        echo "  Progress: ${COMPLETED}/${TOTAL} completed, ${IN_PROGRESS} in progress, ${PENDING} pending"
+      fi
+
+      # Show next task if in implement phase
+      if [ "$PHASE" = "implement" ]; then
+        NEXT_TASK_JSON=$(ralph-dev tasks next --json 2>/dev/null)
+        if [ $? -eq 0 ]; then
+          NEXT_TASK_ID=$(echo "$NEXT_TASK_JSON" | jq -r '.task.id // "none"' 2>/dev/null)
+          if [ "$NEXT_TASK_ID" != "none" ] && [ "$NEXT_TASK_ID" != "null" ]; then
+            echo "  Next Task: ${NEXT_TASK_ID}"
+          fi
+        fi
+      fi
+      echo ""
+    fi
+  fi
+fi
+
 exit 0

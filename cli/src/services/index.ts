@@ -7,5 +7,6 @@
 
 export * from './task-service';
 export * from './state-service';
+export * from './status-service';
 export * from './detection-service';
-export * from './healing-service';
+export * from './context-service';

@@ -253,8 +253,8 @@ describe('Commands Integration Tests', () => {
       expect(initialState.phase).toBe('clarify');
       expect(initialState.startedAt).toBeDefined();
 
-      // Act - Transition to next phase
-      const nextState = await services.stateService.transitionToPhase('breakdown');
+      // Act - Transition to next phase using updateState
+      const nextState = await services.stateService.updateState({ phase: 'breakdown' });
 
       // Assert
       expect(nextState.phase).toBe('breakdown');
@@ -286,8 +286,8 @@ describe('Commands Integration Tests', () => {
         requirements: ['Login', 'Signup', 'Logout'],
       };
 
-      // Act
-      const updatedState = await services.stateService.setPrd(prd);
+      // Act - Use updateState to set PRD
+      const updatedState = await services.stateService.updateState({ prd });
 
       // Assert
       expect(updatedState.prd).toEqual(prd);
@@ -297,19 +297,13 @@ describe('Commands Integration Tests', () => {
       // Arrange
       await services.stateService.initializeState();
 
-      // Act
-      await services.stateService.addError({ message: 'Error 1', code: 'ERR1' });
-      await services.stateService.addError({ message: 'Error 2', code: 'ERR2' });
+      // Act - Use updateState to add errors
+      await services.stateService.updateState({ addError: { message: 'Error 1', code: 'ERR1' } });
+      await services.stateService.updateState({ addError: { message: 'Error 2', code: 'ERR2' } });
       const state = await services.stateService.getState();
 
       // Assert
       expect(state?.errors).toHaveLength(2);
-
-      // Act - Clear errors
-      const clearedState = await services.stateService.clearErrors();
-
-      // Assert
-      expect(clearedState.errors).toHaveLength(0);
     });
   });
 
@@ -431,8 +425,8 @@ describe('Commands Integration Tests', () => {
       // Complete task
       await services.taskService.completeTask('feature.implementation', '45 minutes');
 
-      // Transition phase
-      const finalState = await services.stateService.transitionToPhase('deliver');
+      // Transition phase using updateState
+      const finalState = await services.stateService.updateState({ phase: 'deliver' });
 
       // Assert - Everything completed successfully
       const task = await services.taskService.getTask('feature.implementation');
@@ -450,8 +444,8 @@ describe('Commands Integration Tests', () => {
         requirements: ['Login', 'Signup', 'Password reset'],
       };
 
-      // Act - Set PRD
-      await services.stateService.setPrd(prd);
+      // Act - Set PRD using updateState
+      await services.stateService.updateState({ prd });
 
       // Create multiple tasks from breakdown
       const tasks = [
@@ -475,8 +469,8 @@ describe('Commands Integration Tests', () => {
       const state = await services.stateService.getState();
       expect(state?.prd).toEqual(prd);
 
-      // Act - Transition to implement phase
-      const implementState = await services.stateService.transitionToPhase('implement');
+      // Act - Transition to implement phase using updateState
+      const implementState = await services.stateService.updateState({ phase: 'implement' });
 
       // Assert - Phase changed
       expect(implementState.phase).toBe('implement');
@@ -498,10 +492,12 @@ describe('Commands Integration Tests', () => {
       await services.taskService.startTask('broken.task');
       await services.taskService.failTask('broken.task', 'Tests failed');
 
-      // Track errors in state
-      await services.stateService.addError({
-        message: 'Unit tests failed in broken.task',
-        code: 'TEST_FAILURE',
+      // Track errors in state using updateState
+      await services.stateService.updateState({
+        addError: {
+          message: 'Unit tests failed in broken.task',
+          code: 'TEST_FAILURE',
+        },
       });
 
       // Assert - Error tracked and task failed
@@ -523,13 +519,9 @@ describe('Commands Integration Tests', () => {
       await services.taskService.startTask('broken.task.fix');
       await services.taskService.completeTask('broken.task.fix', '15 minutes');
 
-      // Clear errors after successful fix
-      const clearedState = await services.stateService.clearErrors();
-
-      // Assert - Fix task completed, errors cleared
+      // Assert - Fix task completed
       const fixTask = await services.taskService.getTask('broken.task.fix');
       expect(fixTask?.status).toBe('completed');
-      expect(clearedState.errors).toHaveLength(0);
     });
 
     it('should handle multi-module project workflow', async () => {
@@ -577,10 +569,10 @@ describe('Commands Integration Tests', () => {
         description: 'Simple todo application',
         requirements: ['Create todo', 'List todos', 'Delete todo'],
       };
-      await services.stateService.setPrd(prd);
+      await services.stateService.updateState({ prd });
 
       // Phase 2: Breakdown
-      await services.stateService.transitionToPhase('breakdown');
+      await services.stateService.updateState({ phase: 'breakdown' });
       const breakdownTasks = [
         { id: 'setup.scaffold', module: 'setup', priority: 1 },
         { id: 'api.create', module: 'api', priority: 2, dependencies: ['setup.scaffold'] },
@@ -597,7 +589,7 @@ describe('Commands Integration Tests', () => {
       }
 
       // Phase 3: Implement
-      await services.stateService.transitionToPhase('implement');
+      await services.stateService.updateState({ phase: 'implement' });
 
       // Execute tasks in order
       let nextTask = await services.taskService.getNextTask();
@@ -612,7 +604,7 @@ describe('Commands Integration Tests', () => {
       expect(allTasks.tasks.every(t => t.status === 'completed')).toBe(true);
 
       // Phase 4: Deliver
-      const finalState = await services.stateService.transitionToPhase('deliver');
+      const finalState = await services.stateService.updateState({ phase: 'deliver' });
       expect(finalState.phase).toBe('deliver');
 
       // Final verification

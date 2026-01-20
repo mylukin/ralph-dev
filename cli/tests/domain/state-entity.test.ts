@@ -383,185 +383,6 @@ describe('State Domain Entity', () => {
     });
   });
 
-  describe('isComplete', () => {
-    it('should return true when phase is complete', () => {
-      // Arrange
-      const state = new State({ ...baseConfig, phase: 'complete' });
-
-      // Act
-      const result = state.isComplete();
-
-      // Assert
-      expect(result).toBe(true);
-    });
-
-    it('should return false for other phases', () => {
-      // Arrange
-      const phases: Phase[] = ['clarify', 'breakdown', 'implement', 'heal', 'deliver'];
-
-      // Act & Assert
-      phases.forEach((phase) => {
-        const state = new State({ ...baseConfig, phase });
-        expect(state.isComplete()).toBe(false);
-      });
-    });
-  });
-
-  describe('isHealing', () => {
-    it('should return true when phase is heal', () => {
-      // Arrange
-      const state = new State({ ...baseConfig, phase: 'heal' });
-
-      // Act
-      const result = state.isHealing();
-
-      // Assert
-      expect(result).toBe(true);
-    });
-
-    it('should return false for other phases', () => {
-      // Arrange
-      const phases: Phase[] = ['clarify', 'breakdown', 'implement', 'deliver', 'complete'];
-
-      // Act & Assert
-      phases.forEach((phase) => {
-        const state = new State({ ...baseConfig, phase });
-        expect(state.isHealing()).toBe(false);
-      });
-    });
-  });
-
-  describe('isImplementing', () => {
-    it('should return true when phase is implement', () => {
-      // Arrange
-      const state = new State({ ...baseConfig, phase: 'implement' });
-
-      // Act
-      const result = state.isImplementing();
-
-      // Assert
-      expect(result).toBe(true);
-    });
-
-    it('should return false for other phases', () => {
-      // Arrange
-      const phases: Phase[] = ['clarify', 'breakdown', 'heal', 'deliver', 'complete'];
-
-      // Act & Assert
-      phases.forEach((phase) => {
-        const state = new State({ ...baseConfig, phase });
-        expect(state.isImplementing()).toBe(false);
-      });
-    });
-  });
-
-  describe('hasErrors', () => {
-    it('should return true when errors exist', () => {
-      // Arrange
-      const state = new State({
-        ...baseConfig,
-        errors: [{ message: 'Error' }],
-      });
-
-      // Act
-      const result = state.hasErrors();
-
-      // Assert
-      expect(result).toBe(true);
-    });
-
-    it('should return false when no errors', () => {
-      // Arrange
-      const state = new State({ ...baseConfig, errors: [] });
-
-      // Act
-      const result = state.hasErrors();
-
-      // Assert
-      expect(result).toBe(false);
-    });
-  });
-
-  describe('getPhaseIndex', () => {
-    it('should return correct index for each phase', () => {
-      // Act & Assert
-      expect(new State({ ...baseConfig, phase: 'clarify' }).getPhaseIndex()).toBe(0);
-      expect(new State({ ...baseConfig, phase: 'breakdown' }).getPhaseIndex()).toBe(1);
-      expect(new State({ ...baseConfig, phase: 'implement' }).getPhaseIndex()).toBe(2);
-      expect(new State({ ...baseConfig, phase: 'heal' }).getPhaseIndex()).toBe(3);
-      expect(new State({ ...baseConfig, phase: 'deliver' }).getPhaseIndex()).toBe(4);
-      expect(new State({ ...baseConfig, phase: 'complete' }).getPhaseIndex()).toBe(5);
-    });
-  });
-
-  describe('getProgressPercentage', () => {
-    it('should return 0% for clarify phase', () => {
-      // Arrange
-      const state = new State({ ...baseConfig, phase: 'clarify' });
-
-      // Act
-      const result = state.getProgressPercentage();
-
-      // Assert
-      expect(result).toBe(0);
-    });
-
-    it('should return 20% for breakdown phase', () => {
-      // Arrange
-      const state = new State({ ...baseConfig, phase: 'breakdown' });
-
-      // Act
-      const result = state.getProgressPercentage();
-
-      // Assert
-      expect(result).toBe(20);
-    });
-
-    it('should return 40% for implement phase', () => {
-      // Arrange
-      const state = new State({ ...baseConfig, phase: 'implement' });
-
-      // Act
-      const result = state.getProgressPercentage();
-
-      // Assert
-      expect(result).toBe(40);
-    });
-
-    it('should return 60% for heal phase', () => {
-      // Arrange
-      const state = new State({ ...baseConfig, phase: 'heal' });
-
-      // Act
-      const result = state.getProgressPercentage();
-
-      // Assert
-      expect(result).toBe(60);
-    });
-
-    it('should return 80% for deliver phase', () => {
-      // Arrange
-      const state = new State({ ...baseConfig, phase: 'deliver' });
-
-      // Act
-      const result = state.getProgressPercentage();
-
-      // Assert
-      expect(result).toBe(80);
-    });
-
-    it('should return 100% for complete phase', () => {
-      // Arrange
-      const state = new State({ ...baseConfig, phase: 'complete' });
-
-      // Act
-      const result = state.getProgressPercentage();
-
-      // Assert
-      expect(result).toBe(100);
-    });
-  });
-
   describe('getNextAllowedPhases', () => {
     it('should return [breakdown] for clarify', () => {
       // Arrange
@@ -717,28 +538,22 @@ describe('State Domain Entity', () => {
 
       // Act & Assert - clarify
       expect(state.phase).toBe('clarify');
-      expect(state.getProgressPercentage()).toBe(0);
 
       // Act & Assert - breakdown
       state.transitionTo('breakdown');
       expect(state.phase).toBe('breakdown');
-      expect(state.getProgressPercentage()).toBe(20);
 
       // Act & Assert - implement
       state.transitionTo('implement');
       expect(state.phase).toBe('implement');
-      expect(state.getProgressPercentage()).toBe(40);
 
       // Act & Assert - deliver
       state.transitionTo('deliver');
       expect(state.phase).toBe('deliver');
-      expect(state.getProgressPercentage()).toBe(80);
 
       // Act & Assert - complete
       state.transitionTo('complete');
       expect(state.phase).toBe('complete');
-      expect(state.getProgressPercentage()).toBe(100);
-      expect(state.isComplete()).toBe(true);
     });
 
     it('should support healing workflow: implement → heal → implement → deliver', () => {
@@ -750,7 +565,6 @@ describe('State Domain Entity', () => {
       // Act & Assert - heal
       state.transitionTo('heal');
       expect(state.phase).toBe('heal');
-      expect(state.isHealing()).toBe(true);
 
       // Act & Assert - back to implement
       state.transitionTo('implement');

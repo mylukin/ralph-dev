@@ -36,29 +36,9 @@ export interface IStateService {
   updateState(updates: StateUpdate): Promise<State>;
 
   /**
-   * Transition to new phase
-   */
-  transitionToPhase(targetPhase: Phase): Promise<State>;
-
-  /**
    * Set current task
    */
   setCurrentTask(taskId: string | undefined): Promise<State>;
-
-  /**
-   * Set PRD (Product Requirements Document)
-   */
-  setPrd(prd: any): Promise<State>;
-
-  /**
-   * Add error to error list
-   */
-  addError(error: any): Promise<State>;
-
-  /**
-   * Clear error list
-   */
-  clearErrors(): Promise<State>;
 
   /**
    * Clear state (delete state file)
@@ -133,35 +113,6 @@ export class StateService implements IStateService {
     return updatedState;
   }
 
-  async transitionToPhase(targetPhase: Phase): Promise<State> {
-    this.logger.info(`Transitioning to phase: ${targetPhase}`);
-
-    const currentState = await this.stateRepository.get();
-    if (!currentState) {
-      throw new Error('State not found. Initialize state first.');
-    }
-
-    // Validate transition (State entity will throw if invalid)
-    if (!currentState.canTransitionTo(targetPhase)) {
-      const allowedPhases = currentState.getNextAllowedPhases();
-      throw new Error(
-        `Cannot transition from ${currentState.phase} to ${targetPhase}. ` +
-          `Allowed transitions: ${allowedPhases.join(', ')}`
-      );
-    }
-
-    // Update phase
-    await this.stateRepository.update({ phase: targetPhase });
-
-    const updatedState = await this.stateRepository.get();
-    if (!updatedState) {
-      throw new Error('Failed to transition phase');
-    }
-
-    this.logger.info(`Transitioned to phase: ${targetPhase}`);
-    return updatedState;
-  }
-
   async setCurrentTask(taskId: string | undefined): Promise<State> {
     this.logger.info('Setting current task', { taskId });
 
@@ -178,68 +129,6 @@ export class StateService implements IStateService {
     }
 
     this.logger.info('Current task set', { taskId });
-    return updatedState;
-  }
-
-  async setPrd(prd: any): Promise<State> {
-    this.logger.info('Setting PRD');
-
-    const currentState = await this.stateRepository.get();
-    if (!currentState) {
-      throw new Error('State not found. Initialize state first.');
-    }
-
-    await this.stateRepository.update({ prd });
-
-    const updatedState = await this.stateRepository.get();
-    if (!updatedState) {
-      throw new Error('Failed to set PRD');
-    }
-
-    this.logger.info('PRD set');
-    return updatedState;
-  }
-
-  async addError(error: any): Promise<State> {
-    this.logger.error('Adding error to state', { error });
-
-    const currentState = await this.stateRepository.get();
-    if (!currentState) {
-      throw new Error('State not found. Initialize state first.');
-    }
-
-    await this.stateRepository.update({ addError: error });
-
-    const updatedState = await this.stateRepository.get();
-    if (!updatedState) {
-      throw new Error('Failed to add error');
-    }
-
-    this.logger.error('Error added to state');
-    return updatedState;
-  }
-
-  async clearErrors(): Promise<State> {
-    this.logger.info('Clearing errors');
-
-    const currentState = await this.stateRepository.get();
-    if (!currentState) {
-      throw new Error('State not found. Initialize state first.');
-    }
-
-    // Clear errors by calling the domain entity method
-    currentState.clearErrors();
-
-    // Save the updated state
-    const stateConfig = currentState.toJSON();
-    await this.stateRepository.set(stateConfig);
-
-    const updatedState = await this.stateRepository.get();
-    if (!updatedState) {
-      throw new Error('Failed to clear errors');
-    }
-
-    this.logger.info('Errors cleared');
     return updatedState;
   }
 

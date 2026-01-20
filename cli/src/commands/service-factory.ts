@@ -10,7 +10,7 @@ import { TaskService, ITaskService } from '../services/task-service';
 import { StateService, IStateService } from '../services/state-service';
 import { StatusService, IStatusService } from '../services/status-service';
 import { DetectionService, IDetectionService } from '../services/detection-service';
-import { HealingService, IHealingService } from '../services/healing-service';
+import { ContextService, IContextService } from '../services/context-service';
 import { FileSystemTaskRepository } from '../repositories/task-repository.service';
 import { FileSystemStateRepository } from '../repositories/state-repository.service';
 import { LanguageDetector } from '../language/detector';
@@ -27,7 +27,6 @@ export interface ServiceContainer {
   stateService: IStateService;
   statusService: IStatusService;
   detectionService: IDetectionService;
-  healingService: IHealingService;
   logger: ILogger;
 }
 
@@ -58,19 +57,11 @@ export function createServices(workspaceDir: string): ServiceContainer {
     workspaceDir
   );
 
-  // Healing service with circuit breaker
-  const healingService = new HealingService(logger, fileSystem, workspaceDir, {
-    failureThreshold: 5,
-    timeout: 60000,
-    successThreshold: 2,
-  });
-
   return {
     taskService,
     stateService,
     statusService,
     detectionService,
-    healingService,
     logger,
   };
 }
@@ -122,4 +113,17 @@ export function createDetectionService(workspaceDir: string): IDetectionService 
   const indexRepository = new FileSystemIndexRepository(fileSystem, tasksDir);
 
   return new DetectionService(LanguageDetector, indexRepository, logger, workspaceDir);
+}
+
+/**
+ * Create ContextService (convenience function for task context gathering)
+ */
+export function createContextService(workspaceDir: string): IContextService {
+  const logger = new ConsoleLogger();
+  const fileSystem = new FileSystemService();
+  const tasksDir = path.join(workspaceDir, '.ralph-dev', 'tasks');
+  const taskRepository = new FileSystemTaskRepository(fileSystem, tasksDir);
+  const stateRepository = new FileSystemStateRepository(fileSystem, workspaceDir);
+
+  return new ContextService(taskRepository, stateRepository, fileSystem, logger, workspaceDir);
 }

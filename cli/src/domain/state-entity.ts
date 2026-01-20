@@ -25,16 +25,6 @@ export interface StateConfig {
  * - Timestamp tracking
  */
 export class State {
-  // Valid phase progression
-  private static readonly PHASE_ORDER: ReadonlyArray<Phase> = [
-    'clarify',
-    'breakdown',
-    'implement',
-    'heal',
-    'deliver',
-    'complete',
-  ];
-
   // Valid transitions map (phase → allowed next phases)
   private static readonly VALID_TRANSITIONS: ReadonlyMap<Phase, ReadonlySet<Phase>> = new Map([
     ['clarify', new Set(['breakdown'])],
@@ -152,52 +142,6 @@ export class State {
   clearErrors(): void {
     this._errors = [];
     this._updatedAt = new Date();
-  }
-
-  /**
-   * Check if state is in terminal phase (complete)
-   */
-  isComplete(): boolean {
-    return this._phase === 'complete';
-  }
-
-  /**
-   * Check if state is in healing phase
-   */
-  isHealing(): boolean {
-    return this._phase === 'heal';
-  }
-
-  /**
-   * Check if state is in implementation phase
-   */
-  isImplementing(): boolean {
-    return this._phase === 'implement';
-  }
-
-  /**
-   * Check if state has errors
-   */
-  hasErrors(): boolean {
-    return this._errors.length > 0;
-  }
-
-  /**
-   * Get phase index (for progress calculation)
-   * @returns 0-based index of current phase
-   */
-  getPhaseIndex(): number {
-    return State.PHASE_ORDER.indexOf(this._phase);
-  }
-
-  /**
-   * Get progress percentage (0-100)
-   * Based on phase progression
-   */
-  getProgressPercentage(): number {
-    const index = this.getPhaseIndex();
-    const total = State.PHASE_ORDER.length;
-    return Math.round((index / (total - 1)) * 100);
   }
 
   /**

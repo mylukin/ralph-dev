@@ -7,6 +7,7 @@ import { registerStatusCommand } from './commands/status';
 import { registerDetectCommand } from './commands/detect';
 import { registerDetectAICommand } from './commands/detect-ai';
 import { registerInitCommand } from './commands/init';
+import { registerCircuitBreakerCommand } from './commands/circuit-breaker';
 import { version } from '../package.json';
 
 const program = new Command();
@@ -26,6 +27,7 @@ registerStatusCommand(program, workspaceDir);
 registerDetectCommand(program, workspaceDir);
 registerDetectAICommand(program, workspaceDir);
 registerInitCommand(program, workspaceDir);
+registerCircuitBreakerCommand(program, workspaceDir);
 
 // Parse command line arguments
 program.parse(process.argv);

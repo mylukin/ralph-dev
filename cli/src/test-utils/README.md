@@ -7,12 +7,12 @@ This directory contains mock implementations of infrastructure services and test
 ## Overview
 
 The test utilities provide:
-- **Mock implementations** of `IFileSystem`, `IGitService`, and `ILogger` interfaces
+- **Mock implementations** of `IFileSystem` and `ILogger` interfaces
 - **Test data fixtures** for common domain objects (Tasks, States, LanguageConfigs)
 - **Helper methods** for easy test setup and assertions
 
 > 测试工具提供：
-> - `IFileSystem`、`IGitService` 和 `ILogger` 接口的**模拟实现**
+> - `IFileSystem` 和 `ILogger` 接口的**模拟实现**
 > - 常见领域对象（任务、状态、语言配置）的**测试数据fixture**
 > - 用于简化测试设置和断言的**辅助方法**
 
@@ -21,7 +21,6 @@ The test utilities provide:
 ```typescript
 import {
   MockFileSystem,
-  MockGitService,
   MockLogger,
   testTasks,
   testStates,
@@ -29,30 +28,25 @@ import {
 
 describe('MyService', () => {
   let mockFs: MockFileSystem;
-  let mockGit: MockGitService;
   let mockLogger: MockLogger;
 
   beforeEach(() => {
     mockFs = new MockFileSystem();
-    mockGit = new MockGitService();
     mockLogger = new MockLogger();
   });
 
   afterEach(() => {
     mockFs.reset();
-    mockGit.reset();
     mockLogger.reset();
   });
 
   it('should do something', async () => {
     // Use the mocks in your tests
     await mockFs.writeFile('/test/file.txt', 'content');
-    await mockGit.commit('test commit');
     mockLogger.info('Operation started');
 
     // Verify behavior
     expect(mockFs.hasFile('/test/file.txt')).toBe(true);
-    expect(mockGit.wasCommitCalled()).toBe(true);
     expect(mockLogger.wasInfoCalled()).toBe(true);
   });
 });
@@ -141,95 +135,6 @@ describe('TaskWriter', () => {
     const content = await mockFs.readFile('/tasks/test/test.task.md', 'utf-8');
     expect(content).toContain('id: test.task');
     expect(content).toContain('# Test task');
-  });
-});
-```
-
-## MockGitService
-
-Mock git service that records all git operations without executing actual git commands.
-
-> 模拟git服务，记录所有git操作而不执行实际的git命令。
-
-### Basic Usage
-
-```typescript
-const mockGit = new MockGitService();
-
-// Perform git operations
-await mockGit.stash('WIP: feature');
-await mockGit.commit('feat: add new feature');
-await mockGit.push('origin', 'main');
-
-// Verify operations were called
-expect(mockGit.wasStashCalled()).toBe(true);
-expect(mockGit.wasCommitCalled()).toBe(true);
-expect(mockGit.wasPushCalled()).toBe(true);
-
-// Check specific calls
-expect(mockGit.getLastCommitCall()?.message).toBe('feat: add new feature');
-expect(mockGit.getLastPushCall()?.remote).toBe('origin');
-expect(mockGit.getLastPushCall()?.branch).toBe('main');
-
-// Check call counts
-expect(mockGit.stashCalls).toHaveLength(1);
-expect(mockGit.commitCalls).toHaveLength(1);
-```
-
-### Configuring Responses
-
-```typescript
-// Set custom responses
-mockGit.commitResponse = '[main def456] Custom commit';
-mockGit.statusResponse = 'On branch feature\nChanges not staged for commit';
-
-// Get custom response
-const output = await mockGit.commit('test');
-expect(output).toBe('[main def456] Custom commit');
-```
-
-### Simulating Errors
-
-```typescript
-// Configure to throw errors
-mockGit.shouldThrowOnCommit = true;
-
-// Operation will throw
-await expect(mockGit.commit('test')).rejects.toThrow('git commit failed');
-```
-
-### Example: Testing Saga Steps
-
-```typescript
-import { MockGitService } from '../test-utils';
-import { CommitSagaStep } from '../core/saga-steps';
-
-describe('CommitSagaStep', () => {
-  let mockGit: MockGitService;
-
-  beforeEach(() => {
-    mockGit = new MockGitService();
-  });
-
-  it('should commit changes with correct message', async () => {
-    // Arrange
-    const step = new CommitSagaStep(mockGit, 'feat: new feature');
-
-    // Act
-    await step.execute();
-
-    // Assert
-    expect(mockGit.wasCommitCalled()).toBe(true);
-    expect(mockGit.getLastCommitCall()?.message).toBe('feat: new feature');
-  });
-
-  it('should handle commit failure', async () => {
-    // Arrange
-    mockGit.shouldThrowOnCommit = true;
-    const step = new CommitSagaStep(mockGit, 'test');
-
-    // Act & Assert
-    await expect(step.execute()).rejects.toThrow();
   });
 });
 ```
@@ -429,13 +334,11 @@ it('should parse task file', () => {
 ```typescript
 beforeEach(() => {
   mockFs = new MockFileSystem();
-  mockGit = new MockGitService();
   mockLogger = new MockLogger();
 });
 
 afterEach(() => {
   mockFs.reset();
-  mockGit.reset();
   mockLogger.reset();
 });
 ```
@@ -504,9 +407,6 @@ it('should log task creation', async () => {
 
   // Assert - Verify logging occurred
   expect(mockLogger.wasInfoCalledWith('Task created')).toBe(true);
-
-  // Assert - Verify git was not called (no commit yet)
-  expect(mockGit.wasCommitCalled()).toBe(false);
 });
 ```
 
@@ -530,15 +430,13 @@ npm test -- --coverage src/test-utils
 
 The test-utils module has comprehensive test coverage:
 - **MockFileSystem**: 100% coverage (35 tests)
-- **MockGitService**: 100% coverage (43 tests)
 - **MockLogger**: 100% coverage (33 tests)
-- **Total**: 111 tests, all passing
+- **Total**: 68 tests, all passing
 
 > test-utils模块具有全面的测试覆盖率：
 > - **MockFileSystem**：100%覆盖率（35个测试）
-> - **MockGitService**：100%覆盖率（43个测试）
 > - **MockLogger**：100%覆盖率（33个测试）
-> - **总计**：111个测试，全部通过
+> - **总计**：68个测试，全部通过
 
 ## Contributing
 
