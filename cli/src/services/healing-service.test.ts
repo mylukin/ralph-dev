@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { HealingService, HealingOperation } from './healing-service';
 import { CircuitState } from '../core/circuit-breaker';
 import { ILogger } from '../infrastructure/logger';
+import { IFileSystem, WriteFileOptions } from '../infrastructure/file-system';
 
 /**
  * Mock Logger for testing
@@ -31,6 +32,53 @@ class MockLogger implements ILogger {
 }
 
 /**
+ * Mock FileSystem for testing
+ */
+class MockFileSystem implements IFileSystem {
+  files: Map<string, string> = new Map();
+  appendedData: Array<{ path: string; data: string }> = [];
+
+  async readFile(path: string, encoding?: BufferEncoding): Promise<string | Buffer> {
+    const content = this.files.get(path);
+    if (!content) {
+      throw new Error(`File not found: ${path}`);
+    }
+    return content;
+  }
+
+  async writeFile(path: string, data: string | Buffer, options?: WriteFileOptions): Promise<void> {
+    this.files.set(path, data.toString());
+  }
+
+  async exists(path: string): Promise<boolean> {
+    return this.files.has(path);
+  }
+
+  async ensureDir(path: string): Promise<void> {
+    // No-op for mock
+  }
+
+  async remove(path: string): Promise<void> {
+    this.files.delete(path);
+  }
+
+  async readdir(path: string): Promise<string[]> {
+    return [];
+  }
+
+  async appendFile(path: string, data: string | Buffer, options?: WriteFileOptions): Promise<void> {
+    this.appendedData.push({ path, data: data.toString() });
+    const existing = this.files.get(path) || '';
+    this.files.set(path, existing + data.toString());
+  }
+
+  clear(): void {
+    this.files.clear();
+    this.appendedData = [];
+  }
+}
+
+/**
  * Mock HealingOperation for testing
  */
 class MockHealingOperation implements HealingOperation {
@@ -55,12 +103,15 @@ class MockHealingOperation implements HealingOperation {
 
 describe('HealingService', () => {
   let logger: MockLogger;
+  let fileSystem: MockFileSystem;
   let service: HealingService;
   let operation: MockHealingOperation;
+  const workspaceDir = '/test/workspace';
 
   beforeEach(() => {
     logger = new MockLogger();
-    service = new HealingService(logger);
+    fileSystem = new MockFileSystem();
+    service = new HealingService(logger, fileSystem, workspaceDir);
     operation = new MockHealingOperation();
   });
 
@@ -171,7 +222,7 @@ describe('HealingService', () => {
   describe('circuit breaker integration', () => {
     it('should open circuit after failure threshold', async () => {
       // Arrange
-      service = new HealingService(logger, { failureThreshold: 3 });
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 3 });
       operation.shouldFail = true;
       const taskId = 'failing.task';
 
@@ -186,7 +237,7 @@ describe('HealingService', () => {
 
     it('should block healing when circuit is open', async () => {
       // Arrange
-      service = new HealingService(logger, { failureThreshold: 2 });
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 2 });
       operation.shouldFail = true;
       const taskId = 'failing.task';
 
@@ -206,7 +257,7 @@ describe('HealingService', () => {
 
     it('should log when circuit opens', async () => {
       // Arrange
-      service = new HealingService(logger, { failureThreshold: 2 });
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 2 });
       operation.shouldFail = true;
       const taskId = 'failing.task';
 
@@ -222,7 +273,7 @@ describe('HealingService', () => {
 
     it('should return correct circuit state in result', async () => {
       // Arrange
-      service = new HealingService(logger, { failureThreshold: 2 });
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 2 });
       operation.shouldFail = true;
       const taskId = 'failing.task';
 
@@ -301,7 +352,7 @@ describe('HealingService', () => {
 
     it('should count circuit open events', async () => {
       // Arrange
-      service = new HealingService(logger, { failureThreshold: 2 });
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 2 });
       operation.shouldFail = true;
       const taskId = 'failing.task';
 
@@ -340,7 +391,7 @@ describe('HealingService', () => {
 
     it('should return OPEN after failures', async () => {
       // Arrange
-      service = new HealingService(logger, { failureThreshold: 2 });
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 2 });
       operation.shouldFail = true;
 
       // Act
@@ -355,7 +406,7 @@ describe('HealingService', () => {
   describe('resetCircuit', () => {
     it('should reset circuit state to CLOSED', async () => {
       // Arrange
-      service = new HealingService(logger, { failureThreshold: 2 });
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 2 });
       operation.shouldFail = true;
 
       // Open circuit
@@ -372,7 +423,7 @@ describe('HealingService', () => {
 
     it('should allow healing after reset', async () => {
       // Arrange
-      service = new HealingService(logger, { failureThreshold: 2 });
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 2 });
       operation.shouldFail = true;
 
       // Open circuit
@@ -452,6 +503,113 @@ describe('HealingService', () => {
       const stats = service.getHealingStats();
       expect(stats.totalAttempts).toBe(5);
       expect(stats.successfulAttempts).toBe(5);
+    });
+  });
+
+  describe('file logging', () => {
+    it('should log to circuit-breaker.log when circuit opens', async () => {
+      // Arrange
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 2 });
+      operation.shouldFail = true;
+      const taskId = 'failing.task';
+
+      // Act - Fail twice to open circuit
+      await service.attemptHealing(taskId, operation);
+      await service.attemptHealing(taskId, operation);
+
+      // Assert
+      const logPath = `${workspaceDir}/.ralph-dev/circuit-breaker.log`;
+      const appendedLogs = fileSystem.appendedData.filter(log => log.path === logPath);
+
+      expect(appendedLogs.length).toBeGreaterThan(0);
+      expect(appendedLogs.some(log => log.data.includes('OPEN'))).toBe(true);
+    });
+
+    it('should log to circuit-breaker.log when circuit closes', async () => {
+      // Arrange
+      service = new HealingService(logger, fileSystem, workspaceDir, {
+        failureThreshold: 2,
+        successThreshold: 1,
+        timeout: 0 // Allow immediate reset
+      });
+      operation.shouldFail = true;
+      const taskId = 'task';
+
+      // Open circuit
+      await service.attemptHealing(taskId, operation);
+      await service.attemptHealing(taskId, operation);
+      expect(service.getCircuitState()).toBe(CircuitState.OPEN);
+
+      // Wait for timeout and succeed
+      await new Promise(resolve => setTimeout(resolve, 10));
+      operation.shouldFail = false;
+
+      fileSystem.clear(); // Clear previous logs
+      await service.attemptHealing(taskId, operation);
+
+      // Assert
+      const logPath = `${workspaceDir}/.ralph-dev/circuit-breaker.log`;
+      const appendedLogs = fileSystem.appendedData.filter(log => log.path === logPath);
+
+      expect(appendedLogs.length).toBeGreaterThan(0);
+      expect(appendedLogs.some(log => log.data.includes('CLOSED'))).toBe(true);
+    });
+
+    it('should include timestamp in circuit breaker log', async () => {
+      // Arrange
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 1 });
+      operation.shouldFail = true;
+      const taskId = 'failing.task';
+
+      // Act
+      await service.attemptHealing(taskId, operation);
+
+      // Assert
+      const logPath = `${workspaceDir}/.ralph-dev/circuit-breaker.log`;
+      const appendedLogs = fileSystem.appendedData.filter(log => log.path === logPath);
+
+      expect(appendedLogs.length).toBeGreaterThan(0);
+      // Check for ISO timestamp format
+      expect(appendedLogs[0].data).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    });
+
+    it('should log circuit state transitions', async () => {
+      // Arrange
+      service = new HealingService(logger, fileSystem, workspaceDir, { failureThreshold: 2 });
+      operation.shouldFail = true;
+
+      // Act - Open circuit
+      await service.attemptHealing('task1', operation);
+      await service.attemptHealing('task2', operation);
+
+      // Assert
+      const logPath = `${workspaceDir}/.ralph-dev/circuit-breaker.log`;
+      const appendedLogs = fileSystem.appendedData.filter(log => log.path === logPath);
+
+      // Should have logged the OPEN state
+      expect(appendedLogs.some(log => log.data.includes('OPEN'))).toBe(true);
+      expect(appendedLogs.some(log => log.data.includes('Circuit state'))).toBe(true);
+    });
+
+    it('should handle file system errors gracefully', async () => {
+      // Arrange
+      const failingFileSystem: IFileSystem = {
+        ...fileSystem,
+        appendFile: vi.fn().mockRejectedValue(new Error('Disk full')),
+      };
+      service = new HealingService(logger, failingFileSystem, workspaceDir, { failureThreshold: 1 });
+      operation.shouldFail = true;
+
+      // Act - Should not throw even if file logging fails
+      await service.attemptHealing('task', operation);
+
+      // Assert - Healing still works despite file system error
+      expect(service.getCircuitState()).toBe(CircuitState.OPEN);
+
+      // Should log error about file system failure
+      expect(
+        logger.logs.some(l => l.level === 'error' && l.message.includes('circuit breaker log'))
+      ).toBe(true);
     });
   });
 });

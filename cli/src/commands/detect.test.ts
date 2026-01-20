@@ -1,20 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
 import { registerDetectCommand } from './detect';
-import { LanguageDetector } from '../language/detector';
-import { IndexManager } from '../core/index-manager';
+import { IDetectionService } from '../services/detection-service';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import * as serviceFactory from './service-factory';
 
-// Mock modules
-vi.mock('../language/detector');
-vi.mock('../core/index-manager');
+// Mock service factory
+vi.mock('./service-factory');
 
-describe('detect command', () => {
+describe('detect command (refactored with DetectionService)', () => {
   let program: Command;
   let consoleLogSpy: any;
   let consoleErrorSpy: any;
   let processExitSpy: any;
+  let mockDetectionService: IDetectionService;
   const testDir = path.join(__dirname, '__test-detect-command__');
 
   beforeEach(() => {
@@ -24,6 +24,15 @@ describe('detect command', () => {
     processExitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
 
     fs.ensureDirSync(testDir);
+
+    // Create mock detection service
+    mockDetectionService = {
+      detect: vi.fn(),
+      detectAndSave: vi.fn(),
+    };
+
+    // Mock service factory to return our mock service
+    vi.mocked(serviceFactory.createDetectionService).mockReturnValue(mockDetectionService);
   });
 
   afterEach(() => {
@@ -72,8 +81,8 @@ describe('detect command', () => {
     });
   });
 
-  describe('command execution', () => {
-    it('should detect language and output human-readable format', async () => {
+  describe('command execution - thin layer using DetectionService', () => {
+    it('should call DetectionService.detect when --save is not used', async () => {
       const mockLanguageConfig = {
         language: 'typescript',
         framework: 'node',
@@ -82,14 +91,39 @@ describe('detect command', () => {
         verifyCommands: ['npm test', 'npm run build'],
       };
 
-      vi.mocked(LanguageDetector.detect).mockReturnValue(mockLanguageConfig);
+      vi.mocked(mockDetectionService.detect).mockReturnValue(mockLanguageConfig);
 
       registerDetectCommand(program, testDir);
       await program.parseAsync(['node', 'test', 'detect']);
 
-      expect(LanguageDetector.detect).toHaveBeenCalledWith(testDir);
+      expect(serviceFactory.createDetectionService).toHaveBeenCalledWith(testDir);
+      expect(mockDetectionService.detect).toHaveBeenCalled();
+      expect(mockDetectionService.detectAndSave).not.toHaveBeenCalled();
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Project Configuration:'));
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('typescript'));
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+    });
+
+    it('should call DetectionService.detectAndSave when --save is used', async () => {
+      const mockResult = {
+        languageConfig: {
+          language: 'typescript',
+          framework: 'node',
+          testFramework: 'vitest',
+          buildTool: 'npm',
+          verifyCommands: ['npm test'],
+        },
+        saved: true,
+      };
+
+      vi.mocked(mockDetectionService.detectAndSave).mockReturnValue(mockResult);
+
+      registerDetectCommand(program, testDir);
+      await program.parseAsync(['node', 'test', 'detect', '--save']);
+
+      expect(serviceFactory.createDetectionService).toHaveBeenCalledWith(testDir);
+      expect(mockDetectionService.detectAndSave).toHaveBeenCalled();
+      expect(mockDetectionService.detect).not.toHaveBeenCalled();
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('✓ Saved to index metadata'));
       expect(processExitSpy).toHaveBeenCalledWith(0);
     });
 
@@ -102,11 +136,12 @@ describe('detect command', () => {
         verifyCommands: ['npm test'],
       };
 
-      vi.mocked(LanguageDetector.detect).mockReturnValue(mockLanguageConfig);
+      vi.mocked(mockDetectionService.detect).mockReturnValue(mockLanguageConfig);
 
       registerDetectCommand(program, testDir);
       await program.parseAsync(['node', 'test', 'detect', '--json']);
 
+      expect(mockDetectionService.detect).toHaveBeenCalled();
       expect(consoleLogSpy).toHaveBeenCalledWith(
         expect.stringContaining('"success": true')
       );
@@ -115,127 +150,58 @@ describe('detect command', () => {
       );
     });
 
-    it('should save language config when --save flag is used', async () => {
-      const mockLanguageConfig = {
-        language: 'typescript',
-        framework: 'node',
-        testFramework: 'vitest',
-        buildTool: 'npm',
-        verifyCommands: ['npm test'],
+    it('should output JSON with saved:true when --json and --save flags are used', async () => {
+      const mockResult = {
+        languageConfig: {
+          language: 'python',
+          framework: 'django',
+          testFramework: 'pytest',
+          buildTool: 'pip',
+          verifyCommands: ['pytest'],
+        },
+        saved: true,
       };
 
-      const mockUpdateMetadata = vi.fn();
-      vi.mocked(LanguageDetector.detect).mockReturnValue(mockLanguageConfig);
-      vi.mocked(IndexManager).mockImplementation(() => ({
-        updateMetadata: mockUpdateMetadata,
-      } as any));
-
-      registerDetectCommand(program, testDir);
-      await program.parseAsync(['node', 'test', 'detect', '--save']);
-
-      expect(mockUpdateMetadata).toHaveBeenCalledWith({ languageConfig: mockLanguageConfig });
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('✓ Saved to index metadata'));
-    });
-
-    it('should save and output JSON when both flags are used', async () => {
-      const mockLanguageConfig = {
-        language: 'python',
-        framework: 'django',
-        testFramework: 'pytest',
-        buildTool: 'pip',
-        verifyCommands: ['pytest'],
-      };
-
-      const mockUpdateMetadata = vi.fn();
-      vi.mocked(LanguageDetector.detect).mockReturnValue(mockLanguageConfig);
-      vi.mocked(IndexManager).mockImplementation(() => ({
-        updateMetadata: mockUpdateMetadata,
-      } as any));
+      vi.mocked(mockDetectionService.detectAndSave).mockReturnValue(mockResult);
 
       registerDetectCommand(program, testDir);
       await program.parseAsync(['node', 'test', 'detect', '--json', '--save']);
 
-      expect(mockUpdateMetadata).toHaveBeenCalledWith({ languageConfig: mockLanguageConfig });
+      expect(mockDetectionService.detectAndSave).toHaveBeenCalled();
       expect(consoleLogSpy).toHaveBeenCalledWith(
         expect.stringContaining('"saved": true')
       );
     });
 
-    it('should display framework when present', async () => {
+    it('should display all language config fields in human-readable format', async () => {
       const mockLanguageConfig = {
         language: 'javascript',
         framework: 'react',
         testFramework: 'jest',
         buildTool: 'webpack',
-        verifyCommands: [],
+        verifyCommands: ['npm test', 'npm run build'],
       };
 
-      vi.mocked(LanguageDetector.detect).mockReturnValue(mockLanguageConfig);
+      vi.mocked(mockDetectionService.detect).mockReturnValue(mockLanguageConfig);
 
       registerDetectCommand(program, testDir);
       await program.parseAsync(['node', 'test', 'detect']);
 
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Project Configuration:'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('javascript'));
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Framework:'));
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('react'));
-    });
-
-    it('should display test framework when present', async () => {
-      const mockLanguageConfig = {
-        language: 'javascript',
-        framework: undefined,
-        testFramework: 'jest',
-        buildTool: 'npm',
-        verifyCommands: [],
-      };
-
-      vi.mocked(LanguageDetector.detect).mockReturnValue(mockLanguageConfig);
-
-      registerDetectCommand(program, testDir);
-      await program.parseAsync(['node', 'test', 'detect']);
-
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Test Framework:'));
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('jest'));
-    });
-
-    it('should display build tool when present', async () => {
-      const mockLanguageConfig = {
-        language: 'java',
-        framework: undefined,
-        testFramework: 'junit',
-        buildTool: 'maven',
-        verifyCommands: [],
-      };
-
-      vi.mocked(LanguageDetector.detect).mockReturnValue(mockLanguageConfig);
-
-      registerDetectCommand(program, testDir);
-      await program.parseAsync(['node', 'test', 'detect']);
-
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Build Tool:'));
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('maven'));
-    });
-
-    it('should display verification commands when present', async () => {
-      const mockLanguageConfig = {
-        language: 'go',
-        framework: undefined,
-        testFramework: 'testing',
-        buildTool: 'go',
-        verifyCommands: ['go test ./...', 'go build'],
-      };
-
-      vi.mocked(LanguageDetector.detect).mockReturnValue(mockLanguageConfig);
-
-      registerDetectCommand(program, testDir);
-      await program.parseAsync(['node', 'test', 'detect']);
-
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('webpack'));
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Verification Commands:'));
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('go test ./...'));
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('go build'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('npm test'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('npm run build'));
     });
 
-    it('should handle detection error', async () => {
-      vi.mocked(LanguageDetector.detect).mockImplementation(() => {
+    it('should handle detection service throwing error', async () => {
+      vi.mocked(mockDetectionService.detect).mockImplementation(() => {
         throw new Error('Detection failed');
       });
 
@@ -246,25 +212,27 @@ describe('detect command', () => {
       expect(processExitSpy).toHaveBeenCalledWith(8); // FILE_SYSTEM_ERROR
     });
 
-    it('should handle save error gracefully', async () => {
-      const mockLanguageConfig = {
-        language: 'typescript',
-        framework: 'node',
-        testFramework: 'vitest',
-        buildTool: 'npm',
-        verifyCommands: [],
+    it('should show saved:false when detectAndSave fails to save', async () => {
+      const mockResult = {
+        languageConfig: {
+          language: 'typescript',
+          framework: 'node',
+          testFramework: 'vitest',
+          buildTool: 'npm',
+          verifyCommands: [],
+        },
+        saved: false, // Service returns false when save fails
       };
 
-      vi.mocked(LanguageDetector.detect).mockReturnValue(mockLanguageConfig);
-      vi.mocked(IndexManager).mockImplementation(() => {
-        throw new Error('Failed to save');
-      });
+      vi.mocked(mockDetectionService.detectAndSave).mockReturnValue(mockResult);
 
       registerDetectCommand(program, testDir);
       await program.parseAsync(['node', 'test', 'detect', '--save']);
 
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(processExitSpy).toHaveBeenCalledWith(8); // FILE_SYSTEM_ERROR
+      expect(mockDetectionService.detectAndSave).toHaveBeenCalled();
+      // Should NOT show the "✓ Saved to index metadata" message
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringContaining('✓ Saved'));
+      expect(processExitSpy).toHaveBeenCalledWith(0);
     });
   });
 });

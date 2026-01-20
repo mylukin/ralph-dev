@@ -2,7 +2,7 @@
 id: commands.state-command
 module: commands
 priority: 4
-status: pending
+status: completed
 estimatedMinutes: 25
 dependencies:
   - services.state-service
@@ -21,3 +21,7 @@ testRequirements:
 3. Use dependency injection
 4. Update tests
 
+
+## Notes
+
+Completed in 8m

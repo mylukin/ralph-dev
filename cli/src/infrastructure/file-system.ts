@@ -64,4 +64,12 @@ export interface IFileSystem {
    * @returns Array of file/directory names
    */
   readdir(path: string): Promise<string[]>;
+
+  /**
+   * Append data to file
+   * @param path - Path to the file
+   * @param data - Data to append (string or Buffer)
+   * @param options - Write options (encoding)
+   */
+  appendFile(path: string, data: string | Buffer, options?: WriteFileOptions): Promise<void>;
 }

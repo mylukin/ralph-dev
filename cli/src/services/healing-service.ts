@@ -7,6 +7,8 @@
 
 import { CircuitBreaker, CircuitBreakerConfig, CircuitState } from '../core/circuit-breaker';
 import { ILogger } from '../infrastructure/logger';
+import { IFileSystem } from '../infrastructure/file-system';
+import path from 'path';
 
 /**
  * Healing attempt result
@@ -74,9 +76,13 @@ export class HealingService implements IHealingService {
   private circuitConfig: CircuitBreakerConfig;
   private stats: HealingStats;
   private attemptsByTask: Map<string, number>;
+  private lastCircuitState: CircuitState;
+  private circuitBreakerLogPath: string;
 
   constructor(
     private logger: ILogger,
+    private fileSystem: IFileSystem,
+    private workspaceDir: string,
     circuitConfig?: CircuitBreakerConfig
   ) {
     this.circuitConfig = circuitConfig || {};
@@ -89,6 +95,8 @@ export class HealingService implements IHealingService {
       currentCircuitState: CircuitState.CLOSED,
     };
     this.attemptsByTask = new Map();
+    this.lastCircuitState = CircuitState.CLOSED;
+    this.circuitBreakerLogPath = path.join(workspaceDir, '.ralph-dev', 'circuit-breaker.log');
   }
 
   async attemptHealing(taskId: string, operation: HealingOperation): Promise<HealingResult> {
@@ -126,6 +134,9 @@ export class HealingService implements IHealingService {
         });
       }
 
+      // Check for circuit state changes and log them
+      await this.checkAndLogCircuitStateChange();
+
       // Update current circuit state
       this.stats.currentCircuitState = this.getCircuitState();
 
@@ -140,6 +151,9 @@ export class HealingService implements IHealingService {
       this.stats.failedAttempts++;
 
       const err = error instanceof Error ? error : new Error(String(error));
+
+      // Check for circuit state changes and log them
+      await this.checkAndLogCircuitStateChange();
 
       // Check if circuit just opened
       const newState = this.getCircuitState();
@@ -183,5 +197,39 @@ export class HealingService implements IHealingService {
     // Create a new circuit breaker to reset state
     this.circuitBreaker = new CircuitBreaker(this.circuitConfig);
     this.stats.currentCircuitState = CircuitState.CLOSED;
+    this.lastCircuitState = CircuitState.CLOSED;
+  }
+
+  /**
+   * Check if circuit state has changed and log to file if it has
+   * @private
+   */
+  private async checkAndLogCircuitStateChange(): Promise<void> {
+    const currentState = this.getCircuitState();
+
+    if (currentState !== this.lastCircuitState) {
+      await this.logCircuitStateChange(currentState);
+      this.lastCircuitState = currentState;
+    }
+  }
+
+  /**
+   * Log circuit state change to file system
+   * @private
+   */
+  private async logCircuitStateChange(state: CircuitState): Promise<void> {
+    try {
+      const timestamp = new Date().toISOString();
+      const logEntry = `[${timestamp}] Circuit state: ${state}\n`;
+
+      await this.fileSystem.appendFile(this.circuitBreakerLogPath, logEntry, { encoding: 'utf-8' });
+    } catch (error) {
+      // Don't fail healing operation if logging fails
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.error('Failed to write to circuit breaker log', {
+        error: err.message,
+        path: this.circuitBreakerLogPath,
+      });
+    }
   }
 }

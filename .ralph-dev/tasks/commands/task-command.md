@@ -2,7 +2,7 @@
 id: commands.task-command
 module: commands
 priority: 4
-status: pending
+status: completed
 estimatedMinutes: 30
 dependencies:
   - services.task-service
@@ -23,3 +23,7 @@ testRequirements:
 5. Keep only: parse args, call service, format output
 6. Update tests to use real service + mock repositories
 
+
+## Notes
+
+Completed in 25m

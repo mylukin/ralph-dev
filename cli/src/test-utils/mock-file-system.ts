@@ -151,6 +151,27 @@ export class MockFileSystem implements IFileSystem {
     return Array.from(entries).sort();
   }
 
+  /**
+   * Append data to file in memory
+   */
+  async appendFile(filePath: string, data: string | Buffer, options?: WriteFileOptions): Promise<void> {
+    const normalizedPath = this.normalizePath(filePath);
+    const dirPath = path.dirname(normalizedPath);
+
+    // Ensure parent directory exists
+    await this.ensureDir(dirPath);
+
+    // Get existing content or empty string
+    const existingContent = this.files.get(normalizedPath) || '';
+
+    // Convert both to strings for appending
+    const existingStr = Buffer.isBuffer(existingContent) ? existingContent.toString() : existingContent;
+    const newStr = Buffer.isBuffer(data) ? data.toString() : data;
+
+    // Append and store
+    this.files.set(normalizedPath, existingStr + newStr);
+  }
+
   // Helper methods for testing
 
   /**

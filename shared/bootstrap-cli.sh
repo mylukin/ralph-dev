@@ -50,14 +50,30 @@ fi
 # Configuration
 # ============================================================
 
-# Determine plugin root
-if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-  # Fallback: assume script is in ralph-dev/shared/
-  CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Determine project root (smart resolution for dev and production)
+# Priority:
+# 1. Current working directory (if it has cli/ subdirectory)
+# 2. CLAUDE_PLUGIN_ROOT (if set and has cli/ subdirectory)
+# 3. Script location parent directory (fallback)
+
+RALPH_DEV_ROOT=""
+
+# Try current working directory first (for development)
+if [ -d "$PWD/cli" ]; then
+  RALPH_DEV_ROOT="$PWD"
+# Try CLAUDE_PLUGIN_ROOT (for installed plugin)
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/cli" ]; then
+  RALPH_DEV_ROOT="${CLAUDE_PLUGIN_ROOT}"
+# Fallback: use script location (safe BASH_SOURCE handling)
+elif [ -n "${BASH_SOURCE[0]:-}" ]; then
+  RALPH_DEV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+else
+  # Last resort: assume we're in shared/ directory
+  RALPH_DEV_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-FOREMAN_CLI_PATH="${CLAUDE_PLUGIN_ROOT}/cli/dist/index.js"
-FOREMAN_CLI_DIR="${CLAUDE_PLUGIN_ROOT}/cli"
+FOREMAN_CLI_PATH="${RALPH_DEV_ROOT}/cli/dist/index.js"
+FOREMAN_CLI_DIR="${RALPH_DEV_ROOT}/cli"
 
 # Helper function to run CLI (more reliable than string expansion)
 _run_cli() {

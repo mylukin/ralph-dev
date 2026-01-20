@@ -1,23 +1,19 @@
+/**
+ * State Command - Manage workflow state
+ *
+ * Lightweight command layer that calls StateService and formats output.
+ * Follows the architectural pattern: Command → Service → Repository
+ */
+
 import { Command } from 'commander';
-import * as fs from 'fs-extra';
-import * as path from 'path';
 import chalk from 'chalk';
 import { ExitCode } from '../core/exit-codes';
 import { handleError, Errors } from '../core/error-handler';
 import { successResponse, outputResponse } from '../core/response-wrapper';
-
-interface State {
-  phase: 'clarify' | 'breakdown' | 'implement' | 'heal' | 'deliver';
-  currentTask?: string;
-  prd?: any;
-  errors?: any[];
-  startedAt: string;
-  updatedAt: string;
-}
+import { createStateService } from './service-factory';
+import { Phase } from '../domain/state-entity';
 
 export function registerStateCommands(program: Command, workspaceDir: string): void {
-  const stateFile = path.join(workspaceDir, '.ralph-dev', 'state.json');
-
   const state = program.command('state').description('Manage ralph-dev state');
 
   // Get current state
@@ -25,9 +21,12 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
     .command('get')
     .description('Get current ralph-dev state')
     .option('--json', 'Output as JSON')
-    .action((options) => {
+    .action(async (options) => {
       try {
-        if (!fs.existsSync(stateFile)) {
+        const stateService = createStateService(workspaceDir);
+        const currentState = await stateService.getState();
+
+        if (!currentState) {
           const response = successResponse({ phase: 'none', active: false });
           outputResponse(response, options.json, () => {
             console.log(chalk.yellow('No active ralph-dev session'));
@@ -35,17 +34,16 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
           process.exit(ExitCode.SUCCESS);
         }
 
-        const state: State = fs.readJSONSync(stateFile);
-        const response = successResponse({ ...state, active: true });
+        const response = successResponse({ ...currentState.toJSON(), active: true });
 
         outputResponse(response, options.json, () => {
           console.log(chalk.bold('Current State:'));
-          console.log(`Phase: ${chalk.cyan(state.phase)}`);
-          if (state.currentTask) {
-            console.log(`Current Task: ${chalk.green(state.currentTask)}`);
+          console.log(`Phase: ${chalk.cyan(currentState.phase)}`);
+          if (currentState.currentTask) {
+            console.log(`Current Task: ${chalk.green(currentState.currentTask)}`);
           }
-          console.log(`Started: ${state.startedAt}`);
-          console.log(`Updated: ${state.updatedAt}`);
+          console.log(`Started: ${currentState.startedAt}`);
+          console.log(`Updated: ${currentState.updatedAt}`);
         });
 
         process.exit(ExitCode.SUCCESS);
@@ -61,9 +59,12 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
     .requiredOption('-p, --phase <phase>', 'Current phase')
     .option('-t, --task <taskId>', 'Current task ID')
     .option('--json', 'Output as JSON')
-    .action((options) => {
+    .action(async (options) => {
       try {
-        const validPhases = ['clarify', 'breakdown', 'implement', 'heal', 'deliver'];
+        const stateService = createStateService(workspaceDir);
+
+        // Validate phase
+        const validPhases: Phase[] = ['clarify', 'breakdown', 'implement', 'heal', 'deliver'];
         if (!validPhases.includes(options.phase)) {
           handleError(
             Errors.invalidInput(`Invalid phase "${options.phase}". Valid phases: ${validPhases.join(', ')}`),
@@ -71,26 +72,26 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
           );
         }
 
-        const newState: State = {
-          phase: options.phase,
-          currentTask: options.task,
-          startedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+        // Check if state exists
+        const existingState = await stateService.getState();
 
-        if (fs.existsSync(stateFile)) {
-          const existingState: State = fs.readJSONSync(stateFile);
-          newState.startedAt = existingState.startedAt;
-          newState.prd = existingState.prd;
-          newState.errors = existingState.errors;
+        let newState;
+        if (existingState) {
+          // Update existing state
+          newState = await stateService.updateState({
+            phase: options.phase,
+            currentTask: options.task,
+          });
+        } else {
+          // Initialize new state
+          newState = await stateService.initializeState(options.phase);
+          if (options.task) {
+            newState = await stateService.setCurrentTask(options.task);
+          }
         }
 
-        fs.ensureDirSync(path.dirname(stateFile));
-        fs.writeJSONSync(stateFile, newState, { spaces: 2 });
-
-        const response = successResponse(newState, {
+        const response = successResponse(newState.toJSON(), {
           operation: 'set',
-          stateFile,
         });
 
         outputResponse(response, options.json, (data) => {
@@ -116,55 +117,62 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
     .option('--prd <prdJson>', 'Update PRD (JSON string)')
     .option('--add-error <errorJson>', 'Add error (JSON string)')
     .option('--json', 'Output as JSON')
-    .action((options) => {
+    .action(async (options) => {
       try {
-        if (!fs.existsSync(stateFile)) {
+        const stateService = createStateService(workspaceDir);
+
+        // Check state exists
+        const exists = await stateService.exists();
+        if (!exists) {
           handleError(Errors.stateNotFound(), options.json);
         }
 
-        const state: State = fs.readJSONSync(stateFile);
         const updatedFields: string[] = [];
+        const updates: any = {};
 
+        // Validate and prepare phase update
         if (options.phase) {
-          const validPhases = ['clarify', 'breakdown', 'implement', 'heal', 'deliver'];
+          const validPhases: Phase[] = ['clarify', 'breakdown', 'implement', 'heal', 'deliver'];
           if (!validPhases.includes(options.phase)) {
             handleError(
               Errors.invalidInput(`Invalid phase "${options.phase}". Valid phases: ${validPhases.join(', ')}`),
               options.json
             );
           }
-          state.phase = options.phase;
+          updates.phase = options.phase;
           updatedFields.push('phase');
         }
 
+        // Prepare task update
         if (options.task) {
-          state.currentTask = options.task;
+          updates.currentTask = options.task;
           updatedFields.push('currentTask');
         }
 
+        // Prepare PRD update
         if (options.prd) {
           try {
-            state.prd = JSON.parse(options.prd);
+            updates.prd = JSON.parse(options.prd);
             updatedFields.push('prd');
           } catch (error) {
             handleError(Errors.invalidJson(error), options.json);
           }
         }
 
+        // Prepare error addition
         if (options.addError) {
           try {
-            state.errors = state.errors || [];
-            state.errors.push(JSON.parse(options.addError));
+            updates.addError = JSON.parse(options.addError);
             updatedFields.push('errors');
           } catch (error) {
             handleError(Errors.invalidJson(error), options.json);
           }
         }
 
-        state.updatedAt = new Date().toISOString();
-        fs.writeJSONSync(stateFile, state, { spaces: 2 });
+        // Update state via service
+        const updatedState = await stateService.updateState(updates);
 
-        const response = successResponse(state, {
+        const response = successResponse(updatedState.toJSON(), {
           operation: 'update',
           updatedFields,
         });
@@ -185,17 +193,17 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
     .command('clear')
     .description('Clear ralph-dev state')
     .option('--json', 'Output as JSON')
-    .action((options) => {
+    .action(async (options) => {
       try {
-        const existed = fs.existsSync(stateFile);
+        const stateService = createStateService(workspaceDir);
+        const existed = await stateService.exists();
 
         if (existed) {
-          fs.removeSync(stateFile);
+          await stateService.clearState();
         }
 
         const response = successResponse({
           cleared: existed,
-          stateFile,
         });
 
         outputResponse(response, options.json, (data) => {

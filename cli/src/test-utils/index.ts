@@ -9,6 +9,8 @@
 export { MockFileSystem } from './mock-file-system';
 export { MockGitService } from './mock-git-service';
 export { MockLogger } from './mock-logger';
+export { MockTaskRepository } from './mock-task-repository';
+export { MockStateRepository } from './mock-state-repository';
 
 // Test data fixtures
 export {

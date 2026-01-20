@@ -312,6 +312,52 @@ describe('LanguageDetector', () => {
     });
   });
 
+  describe('PHP detection', () => {
+    it('should detect PHP project with composer.json', () => {
+      const projectDir = path.join(testDir, 'php-project');
+      fs.ensureDirSync(projectDir);
+
+      const composerJson = {
+        name: 'test/php-app',
+        require: {
+          php: '^8.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'composer.json'), composerJson);
+
+      // Create phpunit.xml to trigger phpunit verification
+      fs.writeFileSync(path.join(projectDir, 'phpunit.xml'), '<phpunit></phpunit>');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('php');
+      expect(config.testFramework).toBe('phpunit');
+      expect(config.verifyCommands).toContain('./vendor/bin/phpunit');
+    });
+
+    it('should detect Laravel framework', () => {
+      const projectDir = path.join(testDir, 'laravel-project');
+      fs.ensureDirSync(projectDir);
+
+      const composerJson = {
+        name: 'test/laravel-app',
+        require: {
+          php: '^8.0',
+          'laravel/framework': '^10.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'composer.json'), composerJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('php');
+      expect(config.framework).toBe('laravel');
+      expect(config.testFramework).toBe('phpunit');
+    });
+  });
+
   describe('Unknown project', () => {
     it('should return unknown for unrecognized project', () => {
       const projectDir = path.join(testDir, 'unknown-project');

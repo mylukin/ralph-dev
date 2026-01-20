@@ -351,7 +351,7 @@ if [ "$AUTO_CLEANUP" = "true" ]; then
 elif [ "$AUTO_CLEANUP" = "false" ]; then
   CLEANUP_CHOICE="no"
 else
-  # Ask user
+  # Ask user using AskUserQuestion tool
   echo "The following temporary files can be cleaned up:"
   echo "  • .ralph-dev/state.json (workflow state)"
   echo "  • .ralph-dev/progress.log (audit trail)"
@@ -362,11 +362,32 @@ else
   echo "  ✓ .ralph-dev/tasks/ (task definitions)"
   echo ""
 
-  read -p "Clean up temporary files? (y/n): " CLEANUP_INPUT
-  CLEANUP_CHOICE=$(echo "$CLEANUP_INPUT" | tr '[:upper:]' '[:lower:]')
+  # Use AskUserQuestion tool with the following parameters:
+  # {
+  #   "questions": [
+  #     {
+  #       "question": "Do you want to clean up temporary files?",
+  #       "header": "Cleanup",
+  #       "multiSelect": false,
+  #       "options": [
+  #         {
+  #           "label": "Yes, clean up (Recommended)",
+  #           "description": "Remove temporary state, progress, and debug log files. Documentation (prd.md, tasks/) will be preserved."
+  #         },
+  #         {
+  #           "label": "No, keep files",
+  #           "description": "Keep all temporary files in .ralph-dev/ for manual review. You can clean them up later manually."
+  #         }
+  #       ]
+  #     }
+  #   ]
+  # }
+  #
+  # Store the user's answer in CLEANUP_CHOICE variable
+  # For implementation: The AskUserQuestion tool will be called by the agent
 fi
 
-if [ "$CLEANUP_CHOICE" = "y" ] || [ "$CLEANUP_CHOICE" = "yes" ]; then
+if [ "$CLEANUP_CHOICE" = "Yes, clean up (Recommended)" ] || [ "$CLEANUP_CHOICE" = "Yes, clean up" ] || [ "$CLEANUP_CHOICE" = "yes" ]; then
   echo ""
   echo "🗑️  Removing temporary files..."
 

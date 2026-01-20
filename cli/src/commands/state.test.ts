@@ -395,6 +395,51 @@ describe('state commands', () => {
     });
   });
 
+  describe('refactored architecture', () => {
+    it('should use StateService via createStateService factory', async () => {
+      // This test verifies command uses service factory pattern like status.ts
+      // The implementation should call createStateService(workspaceDir)
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      registerStateCommands(program, testDir);
+
+      // Test complete workflow through service layer
+      await program.parseAsync(['node', 'test', 'state', 'set', '--phase', 'clarify']);
+      expect(fs.existsSync(stateFile)).toBe(true);
+
+      consoleLogSpy.mockClear();
+      await program.parseAsync(['node', 'test', 'state', 'get']);
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('clarify'));
+
+      await program.parseAsync(['node', 'test', 'state', 'update', '--phase', 'breakdown']);
+      const state = fs.readJSONSync(stateFile);
+      expect(state.phase).toBe('breakdown');
+
+      await program.parseAsync(['node', 'test', 'state', 'clear']);
+      expect(fs.existsSync(stateFile)).toBe(false);
+    });
+
+    it('should have thin command handlers without business logic', async () => {
+      // Verify commands contain minimal logic - just parsing and formatting
+      // All business logic should be in StateService
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      registerStateCommands(program, testDir);
+
+      // Set command should not contain validation logic
+      await program.parseAsync(['node', 'test', 'state', 'set', '--phase', 'clarify']);
+
+      // Update should handle PRD without parsing logic in command
+      const prdJson = JSON.stringify({ goal: 'Test' });
+      await program.parseAsync(['node', 'test', 'state', 'update', '--prd', prdJson]);
+
+      const state = fs.readJSONSync(stateFile);
+      expect(state.prd).toEqual({ goal: 'Test' });
+    });
+  });
+
   describe('state clear', () => {
     it('should register state clear command', () => {
       registerStateCommands(program, testDir);

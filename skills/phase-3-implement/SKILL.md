@@ -103,38 +103,65 @@ if [ -n "$LANG_CONFIG" ]; then
       echo "⚠️  WARNING: Tests are failing BEFORE implementation!"
       echo "   This indicates existing bugs in the codebase."
       echo ""
-      echo "Options:"
-      echo "  A) Fix failing tests first, then resume ralph-dev"
-      echo "  B) Continue anyway (not recommended - hard to track new vs old failures)"
-      echo "  C) Cancel ralph-dev"
-      echo ""
 
-      # Ask user what to do
-      read -p "Choose option (A/B/C): " BASELINE_CHOICE
+      # Check baseline strategy configuration for automation support
+      # RALPH_DEV_BASELINE_STRATEGY options:
+      #   - "ask"      : Interactive prompt (default)
+      #   - "continue" : Auto-continue despite failures (CI/CD)
+      #   - "fail"     : Auto-fail if baseline tests fail (strict CI)
+      BASELINE_STRATEGY=${RALPH_DEV_BASELINE_STRATEGY:-"ask"}
 
-      case "$BASELINE_CHOICE" in
-        A|a)
-          echo ""
-          echo "⏸️  Paused for fixing baseline tests"
-          echo "   Fix the failing tests, then resume with: /ralph-dev resume"
-          ralph-dev state update --phase implement --json > /dev/null
-          exit 0
-          ;;
-        B|b)
-          echo ""
-          echo "⚠️  Continuing with failing baseline"
+      case "$BASELINE_STRATEGY" in
+        continue)
+          echo "⚠️  Auto-continuing with failing baseline (RALPH_DEV_BASELINE_STRATEGY=continue)"
           echo "   This may make it difficult to distinguish new failures from old ones"
           echo ""
           ;;
-        C|c)
-          echo ""
-          echo "❌ Ralph-dev cancelled by user"
+        fail)
+          echo "❌ Auto-failing due to baseline test failure (RALPH_DEV_BASELINE_STRATEGY=fail)"
           ralph-dev state clear --json > /dev/null
           exit 1
           ;;
-        *)
-          echo "Invalid choice. Cancelling for safety."
-          exit 1
+        ask|*)
+          # Interactive mode: Ask user what to do using bash read
+          # NOTE: Using bash read instead of AskUserQuestion because:
+          #   - phase-3 may be invoked via Task tool (subagent)
+          #   - AskUserQuestion has 60-second timeout limitation in subagents
+          #   - bash read works in any execution environment
+          #   - Configuration options above provide automation for CI/CD
+          echo "Options:"
+          echo "  A) Fix failing tests first, then resume ralph-dev"
+          echo "  B) Continue anyway (not recommended - hard to track new vs old failures)"
+          echo "  C) Cancel ralph-dev"
+          echo ""
+
+          read -p "Choose option (A/B/C): " BASELINE_CHOICE
+
+          case "$BASELINE_CHOICE" in
+            A|a)
+              echo ""
+              echo "⏸️  Paused for fixing baseline tests"
+              echo "   Fix the failing tests, then resume with: /ralph-dev resume"
+              ralph-dev state update --phase implement --json > /dev/null
+              exit 0
+              ;;
+            B|b)
+              echo ""
+              echo "⚠️  Continuing with failing baseline"
+              echo "   This may make it difficult to distinguish new failures from old ones"
+              echo ""
+              ;;
+            C|c)
+              echo ""
+              echo "❌ Ralph-dev cancelled by user"
+              ralph-dev state clear --json > /dev/null
+              exit 1
+              ;;
+            *)
+              echo "Invalid choice. Cancelling for safety."
+              exit 1
+              ;;
+          esac
           ;;
       esac
     fi

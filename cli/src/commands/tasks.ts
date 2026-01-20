@@ -3,16 +3,180 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
-import { TaskParser, Task } from '../core/task-parser';
-import { TaskWriter } from '../core/task-writer';
+import { TaskParser } from '../core/task-parser';
 import { IndexManager } from '../core/index-manager';
 import { ExitCode } from '../core/exit-codes';
 import { handleError, Errors } from '../core/error-handler';
 import { successResponse, outputResponse } from '../core/response-wrapper';
+import { createTaskService } from './service-factory';
+import { Task } from '../domain/task-entity';
+
+/**
+ * Helper function to gather context for next task display
+ */
+function gatherContext(workspaceDir: string, indexManager: IndexManager, task: Task): any {
+  const context: any = {};
+
+  // Current directory
+  context.currentDirectory = process.cwd();
+
+  // Git information
+  try {
+    const gitBranch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim();
+    const gitLog = execSync('git log -1 --pretty=format:"%h|%s|%ar"', { encoding: 'utf-8' }).trim();
+    const [hash, message, time] = gitLog.split('|');
+    context.git = {
+      branch: gitBranch,
+      lastCommit: { hash, message, time },
+    };
+  } catch (error) {
+    context.git = { error: 'Not a git repository or no commits' };
+  }
+
+  // State context
+  const stateFile = path.join(workspaceDir, '.ralph-dev', 'state.json');
+  if (fs.existsSync(stateFile)) {
+    context.state = fs.readJSONSync(stateFile);
+  }
+
+  // Progress statistics
+  const index = indexManager.readIndex();
+  const allTasks = Object.entries(index.tasks);
+  const completed = allTasks.filter(([, t]) => t.status === 'completed').length;
+  const failed = allTasks.filter(([, t]) => t.status === 'failed').length;
+  const inProgress = allTasks.filter(([, t]) => t.status === 'in_progress').length;
+  const pending = allTasks.filter(([, t]) => t.status === 'pending').length;
+  const total = allTasks.length;
+
+  context.progress = {
+    completed,
+    failed,
+    inProgress,
+    pending,
+    total,
+    percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+  };
+
+  // Recent activity from progress.log
+  const progressLog = path.join(workspaceDir, '.ralph-dev', 'progress.log');
+  context.recentActivity = [];
+  if (fs.existsSync(progressLog)) {
+    try {
+      const logContent = fs.readFileSync(progressLog, 'utf-8');
+      const lines = logContent.trim().split('\n');
+      context.recentActivity = lines.slice(-5);
+    } catch (error) {
+      context.recentActivity = ['Unable to read progress log'];
+    }
+  }
+
+  // Check task dependencies
+  const dependencyStatus: any[] = [];
+  if (task.dependencies && task.dependencies.length > 0) {
+    task.dependencies.forEach(depId => {
+      const depTask = index.tasks[depId];
+      if (depTask) {
+        dependencyStatus.push({
+          id: depId,
+          status: depTask.status,
+          satisfied: depTask.status === 'completed',
+        });
+      } else {
+        dependencyStatus.push({
+          id: depId,
+          status: 'unknown',
+          satisfied: false,
+        });
+      }
+    });
+  }
+
+  context.dependencyStatus = dependencyStatus;
+
+  return context;
+}
+
+/**
+ * Helper function to format next task output
+ */
+function formatNextTaskOutput(task: Task, context: any): void {
+  console.log(chalk.bold('┌─────────────────────────────────────────────────────────────────┐'));
+  console.log(chalk.bold('│ 📍 CONTEXT                                                      │'));
+  console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+  console.log(`│ ${chalk.gray('Current Directory:')} ${chalk.cyan(context.currentDirectory.slice(-50))}`);
+
+  if (context.git.branch) {
+    console.log(`│ ${chalk.gray('Git Branch:')} ${chalk.green(context.git.branch)}`);
+    console.log(`│ ${chalk.gray('Last Commit:')} ${chalk.yellow(context.git.lastCommit.hash)} "${context.git.lastCommit.message.slice(0, 35)}" ${chalk.gray(context.git.lastCommit.time)}`);
+  }
+
+  if (context.state) {
+    console.log(`│ ${chalk.gray('Phase:')} ${chalk.magenta(context.state.phase)} ${chalk.gray('(Phase 3/5)')}`);
+  }
+
+  console.log(`│ ${chalk.gray('Progress:')} ${chalk.green(context.progress.completed)}/${context.progress.total} tasks completed (${context.progress.percentage}%)`);
+  if (context.progress.failed > 0) {
+    console.log(`│ ${chalk.gray('Failed:')} ${chalk.red(context.progress.failed)} tasks`);
+  }
+  if (context.progress.inProgress > 0) {
+    console.log(`│ ${chalk.gray('In Progress:')} ${chalk.yellow(context.progress.inProgress)} tasks`);
+  }
+
+  console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+  console.log(chalk.bold('│ 📝 NEXT TASK                                                    │'));
+  console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+  console.log(`│ ${chalk.gray('ID:')} ${chalk.cyan(task.id)}`);
+  console.log(`│ ${chalk.gray('Module:')} ${chalk.blue(task.module)}`);
+  console.log(`│ ${chalk.gray('Priority:')} P${task.priority}`);
+  console.log(`│ ${chalk.gray('Estimated:')} ${task.estimatedMinutes} min`);
+  console.log(`│ ${chalk.gray('Status:')} ${chalk.yellow(task.status)}`);
+  console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+  console.log(chalk.bold('│ Description:                                                    │'));
+  console.log(`│ ${task.description}`);
+
+  console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+  console.log(chalk.bold('│ Acceptance Criteria:                                            │'));
+  task.acceptanceCriteria.forEach((criterion, index) => {
+    console.log(`│ ${chalk.green(`${index + 1}.`)} ${criterion.slice(0, 58)}`);
+  });
+
+  if (context.dependencyStatus && context.dependencyStatus.length > 0) {
+    console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+    console.log(chalk.bold('│ Dependencies:                                                   │'));
+    context.dependencyStatus.forEach((dep: any) => {
+      const icon = dep.satisfied ? '✅' : '❌';
+      const statusColor = dep.satisfied ? 'green' : 'red';
+      console.log(`│ ${icon} ${dep.id} (${chalk[statusColor](dep.status)})`);
+    });
+  }
+
+  if (task.testRequirements) {
+    console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+    console.log(chalk.bold('│ Test Requirements:                                              │'));
+    if (task.testRequirements.unit) {
+      console.log(`│ ${chalk.gray('Unit:')} ${task.testRequirements.unit.pattern} ${task.testRequirements.unit.required ? chalk.red('(required)') : chalk.gray('(optional)')}`);
+    }
+    if (task.testRequirements.e2e) {
+      console.log(`│ ${chalk.gray('E2E:')} ${task.testRequirements.e2e.pattern} ${task.testRequirements.e2e.required ? chalk.red('(required)') : chalk.gray('(optional)')}`);
+    }
+  }
+
+  if (context.recentActivity && context.recentActivity.length > 0) {
+    console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+    console.log(chalk.bold('│ 📊 RECENT ACTIVITY (from progress.log)                          │'));
+    console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
+    context.recentActivity.forEach((line: string) => {
+      console.log(`│ ${chalk.gray(line.slice(0, 63))}`);
+    });
+  }
+
+  console.log(chalk.bold('└─────────────────────────────────────────────────────────────────┘'));
+}
 
 export function registerTaskCommands(program: Command, workspaceDir: string): void {
   const tasksDir = path.join(workspaceDir, '.ralph-dev', 'tasks');
   const indexManager = new IndexManager(tasksDir);
+  const taskService = createTaskService(workspaceDir);
 
   const tasks = program.command('tasks').description('Manage tasks');
 
@@ -54,33 +218,28 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
     .option('--criteria <criteria...>', 'Acceptance criteria (can specify multiple)')
     .option('--dependencies <deps...>', 'Task dependencies')
     .option('--test-pattern <pattern>', 'Test file pattern')
-    .action((options) => {
-      const task: Task = {
-        id: options.id,
-        module: options.module,
-        priority: parseInt(options.priority),
-        status: 'pending',
-        estimatedMinutes: parseInt(options.estimatedMinutes),
-        description: options.description,
-        acceptanceCriteria: options.criteria || [],
-        dependencies: options.dependencies || [],
-        testRequirements: options.testPattern ? {
-          unit: {
-            required: true,
-            pattern: options.testPattern,
-          },
-        } : undefined,
-        notes: '',
-      };
+    .action(async (options) => {
+      try {
+        // Call service to create task
+        const task = await taskService.createTask({
+          id: options.id,
+          module: options.module,
+          priority: parseInt(options.priority),
+          estimatedMinutes: parseInt(options.estimatedMinutes),
+          description: options.description,
+          acceptanceCriteria: options.criteria,
+          dependencies: options.dependencies,
+          testPattern: options.testPattern,
+        });
 
-      const filePath = TaskWriter.writeTaskFile(tasksDir, task);
-      indexManager.upsertTask(task, filePath);
-
-      console.log(chalk.green(`✅ Task ${options.id} created`));
-      console.log(chalk.gray(`   Module: ${options.module}`));
-      console.log(chalk.gray(`   Priority: ${options.priority}`));
-      console.log(chalk.gray(`   Estimated: ${options.estimatedMinutes} min`));
-      console.log(chalk.gray(`   Location: ${filePath}`));
+        // Format output
+        console.log(chalk.green(`✅ Task ${task.id} created`));
+        console.log(chalk.gray(`   Module: ${task.module}`));
+        console.log(chalk.gray(`   Priority: ${task.priority}`));
+        console.log(chalk.gray(`   Estimated: ${task.estimatedMinutes} min`));
+      } catch (error) {
+        handleError(error as any, false);
+      }
     });
 
   // List all tasks
@@ -96,73 +255,27 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
     .option('--offset <n>', 'Skip first n results', '0')
     .option('--sort <field>', 'Sort by field (priority|status|estimatedMinutes)', 'priority')
     .option('--json', 'Output as JSON')
-    .action((options) => {
+    .action(async (options) => {
       try {
-        const index = indexManager.readIndex();
-        let taskList = Object.entries(index.tasks);
-
-        // Apply filters
-        if (options.status) {
-          taskList = taskList.filter(([, task]) => task.status === options.status);
-        }
-
-        if (options.module) {
-          taskList = taskList.filter(([, task]) => task.module === options.module);
-        }
-
-        if (options.priority) {
-          const priority = parseInt(options.priority);
-          taskList = taskList.filter(([, task]) => task.priority === priority);
-        }
-
-        if (options.hasDependencies) {
-          taskList = taskList.filter(([, task]) =>
-            task.dependencies && task.dependencies.length > 0
-          );
-        }
-
-        if (options.ready) {
-          taskList = taskList.filter(([id, task]) => {
-            if (!task.dependencies || task.dependencies.length === 0) {
-              return true;
-            }
-            return task.dependencies.every(depId => {
-              const depTask = index.tasks[depId];
-              return depTask && depTask.status === 'completed';
-            });
-          });
-        }
-
-        // Sorting
-        switch (options.sort) {
-          case 'priority':
-            taskList.sort(([, a], [, b]) => a.priority - b.priority);
-            break;
-          case 'status':
-            taskList.sort(([, a], [, b]) => a.status.localeCompare(b.status));
-            break;
-          case 'estimatedMinutes':
-            taskList.sort(([, a], [, b]) => (a.estimatedMinutes || 0) - (b.estimatedMinutes || 0));
-            break;
-        }
-
-        // Pagination
-        const offset = parseInt(options.offset);
-        const limit = parseInt(options.limit);
-        const total = taskList.length;
-        taskList = taskList.slice(offset, offset + limit);
-
-        const response = successResponse({
-          total,
-          offset,
-          limit,
-          returned: taskList.length,
-          tasks: taskList.map(([id, task]) => ({ id, ...task })),
+        // Call service with filters
+        const result = await taskService.listTasks({
+          filter: {
+            status: options.status,
+            module: options.module,
+            priority: options.priority ? parseInt(options.priority) : undefined,
+            hasDependencies: options.hasDependencies,
+            ready: options.ready,
+          },
+          limit: parseInt(options.limit),
+          offset: parseInt(options.offset),
+          sort: options.sort,
         });
 
+        // Format output
+        const response = successResponse(result);
         outputResponse(response, options.json, (data) => {
           console.log(chalk.bold(`Tasks (${data.returned} of ${data.total}):`));
-          taskList.forEach(([id, task]) => {
+          data.tasks.forEach((task: any) => {
             const statusColor =
               task.status === 'completed' ? 'green' :
                 task.status === 'in_progress' ? 'yellow' :
@@ -170,7 +283,7 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
 
             console.log(
               `  ${chalk[statusColor](`[${task.status}]`)} ` +
-              `${chalk.cyan(id)} (P${task.priority}) - ${task.description}`
+              `${chalk.cyan(task.id)} (P${task.priority}) - ${task.description}`
             );
           });
 
@@ -191,183 +304,31 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
     .command('next')
     .description('Get next task to work on with comprehensive context')
     .option('--json', 'Output as JSON')
-    .action((options) => {
-      const nextTaskId = indexManager.getNextTask();
-
-      if (!nextTaskId) {
-        if (options.json) {
-          console.log(JSON.stringify({ error: 'No pending tasks' }, null, 2));
-        } else {
-          console.log(chalk.yellow('No pending tasks'));
-        }
-        return;
-      }
-
-      const filePath = indexManager.getTaskFilePath(nextTaskId);
-      if (!filePath) {
-        console.error(chalk.red(`Task file not found: ${nextTaskId}`));
-        process.exit(1);
-      }
-
-      const task = TaskParser.parseTaskFile(filePath);
-
-      // === Gather comprehensive context ===
-      const context: any = {};
-
-      // 1. Current directory
-      context.currentDirectory = process.cwd();
-
-      // 2. Git information
+    .action(async (options) => {
       try {
-        const gitBranch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim();
-        const gitLog = execSync('git log -1 --pretty=format:"%h|%s|%ar"', { encoding: 'utf-8' }).trim();
-        const [hash, message, time] = gitLog.split('|');
-        context.git = {
-          branch: gitBranch,
-          lastCommit: { hash, message, time },
-        };
-      } catch (error) {
-        context.git = { error: 'Not a git repository or no commits' };
-      }
+        // Call service to get next task
+        const task = await taskService.getNextTask();
 
-      // 3. State context
-      const stateFile = path.join(workspaceDir, '.ralph-dev', 'state.json');
-      if (fs.existsSync(stateFile)) {
-        context.state = fs.readJSONSync(stateFile);
-      }
-
-      // 4. Progress statistics
-      const index = indexManager.readIndex();
-      const allTasks = Object.entries(index.tasks);
-      const completed = allTasks.filter(([, t]) => t.status === 'completed').length;
-      const failed = allTasks.filter(([, t]) => t.status === 'failed').length;
-      const inProgress = allTasks.filter(([, t]) => t.status === 'in_progress').length;
-      const pending = allTasks.filter(([, t]) => t.status === 'pending').length;
-      const total = allTasks.length;
-
-      context.progress = {
-        completed,
-        failed,
-        inProgress,
-        pending,
-        total,
-        percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
-      };
-
-      // 5. Recent activity from progress.log
-      const progressLog = path.join(workspaceDir, '.ralph-dev', 'progress.log');
-      context.recentActivity = [];
-      if (fs.existsSync(progressLog)) {
-        try {
-          const logContent = fs.readFileSync(progressLog, 'utf-8');
-          const lines = logContent.trim().split('\n');
-          context.recentActivity = lines.slice(-5); // Last 5 entries
-        } catch (error) {
-          context.recentActivity = ['Unable to read progress log'];
-        }
-      }
-
-      // 6. Check task dependencies
-      const dependencyStatus: any[] = [];
-      if (task.dependencies && task.dependencies.length > 0) {
-        task.dependencies.forEach(depId => {
-          const depTask = index.tasks[depId];
-          if (depTask) {
-            dependencyStatus.push({
-              id: depId,
-              status: depTask.status,
-              satisfied: depTask.status === 'completed',
-            });
+        if (!task) {
+          if (options.json) {
+            console.log(JSON.stringify({ error: 'No pending tasks' }, null, 2));
           } else {
-            dependencyStatus.push({
-              id: depId,
-              status: 'unknown',
-              satisfied: false,
-            });
+            console.log(chalk.yellow('No pending tasks'));
           }
-        });
-      }
-
-      // === Output ===
-      if (options.json) {
-        console.log(JSON.stringify({
-          task,
-          context,
-          dependencyStatus,
-        }, null, 2));
-      } else {
-        // Beautiful formatted output
-        console.log(chalk.bold('┌─────────────────────────────────────────────────────────────────┐'));
-        console.log(chalk.bold('│ 📍 CONTEXT                                                      │'));
-        console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
-        console.log(`│ ${chalk.gray('Current Directory:')} ${chalk.cyan(context.currentDirectory.slice(-50))}`);
-
-        if (context.git.branch) {
-          console.log(`│ ${chalk.gray('Git Branch:')} ${chalk.green(context.git.branch)}`);
-          console.log(`│ ${chalk.gray('Last Commit:')} ${chalk.yellow(context.git.lastCommit.hash)} "${context.git.lastCommit.message.slice(0, 35)}" ${chalk.gray(context.git.lastCommit.time)}`);
+          return;
         }
 
-        if (context.state) {
-          console.log(`│ ${chalk.gray('Phase:')} ${chalk.magenta(context.state.phase)} ${chalk.gray('(Phase 3/5)')}`);
+        // Gather context (keep in command for now - presentation logic)
+        const context = gatherContext(workspaceDir, indexManager, task);
+
+        // Format output
+        if (options.json) {
+          console.log(JSON.stringify({ task: task.toJSON(), context }, null, 2));
+        } else {
+          formatNextTaskOutput(task, context);
         }
-
-        console.log(`│ ${chalk.gray('Progress:')} ${chalk.green(context.progress.completed)}/${context.progress.total} tasks completed (${context.progress.percentage}%)`);
-        if (context.progress.failed > 0) {
-          console.log(`│ ${chalk.gray('Failed:')} ${chalk.red(context.progress.failed)} tasks`);
-        }
-        if (context.progress.inProgress > 0) {
-          console.log(`│ ${chalk.gray('In Progress:')} ${chalk.yellow(context.progress.inProgress)} tasks`);
-        }
-
-        console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
-        console.log(chalk.bold('│ 📝 NEXT TASK                                                    │'));
-        console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
-        console.log(`│ ${chalk.gray('ID:')} ${chalk.cyan(task.id)}`);
-        console.log(`│ ${chalk.gray('Module:')} ${chalk.blue(task.module)}`);
-        console.log(`│ ${chalk.gray('Priority:')} P${task.priority}`);
-        console.log(`│ ${chalk.gray('Estimated:')} ${task.estimatedMinutes} min`);
-        console.log(`│ ${chalk.gray('Status:')} ${chalk.yellow(task.status)}`);
-        console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
-        console.log(chalk.bold('│ Description:                                                    │'));
-        console.log(`│ ${task.description}`);
-
-        console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
-        console.log(chalk.bold('│ Acceptance Criteria:                                            │'));
-        task.acceptanceCriteria.forEach((criterion, index) => {
-          console.log(`│ ${chalk.green(`${index + 1}.`)} ${criterion.slice(0, 58)}`);
-        });
-
-        if (dependencyStatus.length > 0) {
-          console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
-          console.log(chalk.bold('│ Dependencies:                                                   │'));
-          dependencyStatus.forEach(dep => {
-            const icon = dep.satisfied ? '✅' : '❌';
-            const statusColor = dep.satisfied ? 'green' : 'red';
-            console.log(`│ ${icon} ${dep.id} (${chalk[statusColor](dep.status)})`);
-          });
-        }
-
-        if (task.testRequirements) {
-          console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
-          console.log(chalk.bold('│ Test Requirements:                                              │'));
-          if (task.testRequirements.unit) {
-            console.log(`│ ${chalk.gray('Unit:')} ${task.testRequirements.unit.pattern} ${task.testRequirements.unit.required ? chalk.red('(required)') : chalk.gray('(optional)')}`);
-          }
-          if (task.testRequirements.e2e) {
-            console.log(`│ ${chalk.gray('E2E:')} ${task.testRequirements.e2e.pattern} ${task.testRequirements.e2e.required ? chalk.red('(required)') : chalk.gray('(optional)')}`);
-          }
-        }
-
-        if (context.recentActivity.length > 0) {
-          console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
-          console.log(chalk.bold('│ 📊 RECENT ACTIVITY (from progress.log)                          │'));
-          console.log(chalk.bold('├─────────────────────────────────────────────────────────────────┤'));
-          context.recentActivity.forEach((line: string) => {
-            console.log(`│ ${chalk.gray(line.slice(0, 63))}`);
-          });
-        }
-
-        console.log(chalk.bold('└─────────────────────────────────────────────────────────────────┘'));
+      } catch (error) {
+        handleError(error as any, options.json);
       }
     });
 
@@ -376,34 +337,38 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
     .command('get <taskId>')
     .description('Get task details')
     .option('--json', 'Output as JSON')
-    .action((taskId, options) => {
-      const filePath = indexManager.getTaskFilePath(taskId);
+    .action(async (taskId, options) => {
+      try {
+        // Call service to get task
+        const task = await taskService.getTask(taskId);
 
-      if (!filePath) {
-        console.error(chalk.red(`Task not found: ${taskId}`));
-        process.exit(1);
-      }
-
-      const task = TaskParser.parseTaskFile(filePath);
-
-      if (options.json) {
-        console.log(JSON.stringify(task, null, 2));
-      } else {
-        console.log(chalk.bold(`Task: ${chalk.cyan(task.id)}`));
-        console.log(`Module: ${task.module}`);
-        console.log(`Priority: ${task.priority}`);
-        console.log(`Status: ${task.status}`);
-        console.log(`\nDescription: ${task.description}`);
-
-        console.log(chalk.bold('\nAcceptance Criteria:'));
-        task.acceptanceCriteria.forEach((criterion, index) => {
-          console.log(`  ${index + 1}. ${criterion}`);
-        });
-
-        if (task.notes) {
-          console.log(chalk.bold('\nNotes:'));
-          console.log(task.notes);
+        if (!task) {
+          handleError(Errors.taskNotFound(taskId), options.json);
+          return;
         }
+
+        // Format output
+        if (options.json) {
+          console.log(JSON.stringify(task.toJSON(), null, 2));
+        } else {
+          console.log(chalk.bold(`Task: ${chalk.cyan(task.id)}`));
+          console.log(`Module: ${task.module}`);
+          console.log(`Priority: ${task.priority}`);
+          console.log(`Status: ${task.status}`);
+          console.log(`\nDescription: ${task.description}`);
+
+          console.log(chalk.bold('\nAcceptance Criteria:'));
+          task.acceptanceCriteria.forEach((criterion, index) => {
+            console.log(`  ${index + 1}. ${criterion}`);
+          });
+
+          if (task.notes) {
+            console.log(chalk.bold('\nNotes:'));
+            console.log(task.notes);
+          }
+        }
+      } catch (error) {
+        handleError(error as any, options.json);
       }
     });
 
@@ -414,25 +379,22 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
     .option('-d, --duration <duration>', 'Task duration (e.g., "4m 32s")')
     .option('--json', 'Output as JSON')
     .option('--dry-run', 'Preview changes without executing')
-    .action((taskId, options) => {
+    .action(async (taskId, options) => {
       try {
-        const filePath = indexManager.getTaskFilePath(taskId);
-
-        if (!filePath) {
-          handleError(Errors.taskNotFound(taskId), options.json);
-        }
-
-        const task = TaskParser.parseTaskFile(filePath);
-
         // Dry-run mode
         if (options.dryRun) {
+          const task = await taskService.getTask(taskId);
+          if (!task) {
+            handleError(Errors.taskNotFound(taskId), options.json);
+            return;
+          }
+
           const response = successResponse({
             dryRun: true,
             wouldUpdate: {
               taskId,
               currentStatus: task.status,
               newStatus: 'completed',
-              affectedFiles: [filePath],
             },
           });
           outputResponse(response, options.json, (data) => {
@@ -445,32 +407,12 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
           return;
         }
 
-        // Idempotent: Already completed is not an error
-        if (task.status === 'completed') {
-          const response = successResponse({
-            taskId,
-            status: 'completed',
-            alreadyCompleted: true,
-            message: 'Task already completed',
-          });
-          outputResponse(response, options.json, (data) => {
-            console.log(chalk.yellow(`⚠ Task ${taskId} is already completed`));
-          });
-          process.exit(ExitCode.SUCCESS);
-          return;
-        }
-
-        TaskWriter.updateTaskStatus(filePath, 'completed');
-        indexManager.updateTaskStatus(taskId, 'completed');
-
-        if (options.duration) {
-          TaskWriter.appendNotes(filePath, `Completed in ${options.duration}`);
-        }
+        // Call service to complete task
+        const task = await taskService.completeTask(taskId, options.duration);
 
         const response = successResponse({
-          taskId,
-          status: 'completed',
-          previousStatus: task.status,
+          taskId: task.id,
+          status: task.status,
           duration: options.duration,
         });
 
@@ -494,18 +436,16 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
     .requiredOption('-r, --reason <reason>', 'Failure reason')
     .option('--json', 'Output as JSON')
     .option('--dry-run', 'Preview changes without executing')
-    .action((taskId, options) => {
+    .action(async (taskId, options) => {
       try {
-        const filePath = indexManager.getTaskFilePath(taskId);
-
-        if (!filePath) {
-          handleError(Errors.taskNotFound(taskId), options.json);
-        }
-
-        const task = TaskParser.parseTaskFile(filePath);
-
         // Dry-run mode
         if (options.dryRun) {
+          const task = await taskService.getTask(taskId);
+          if (!task) {
+            handleError(Errors.taskNotFound(taskId), options.json);
+            return;
+          }
+
           const response = successResponse({
             dryRun: true,
             wouldUpdate: {
@@ -513,7 +453,6 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
               currentStatus: task.status,
               newStatus: 'failed',
               reason: options.reason,
-              affectedFiles: [filePath],
             },
           });
           outputResponse(response, options.json, (data) => {
@@ -527,25 +466,17 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
           return;
         }
 
-        // Idempotent: Already failed is acceptable (update reason)
-        TaskWriter.updateTaskStatus(filePath, 'failed');
-        indexManager.updateTaskStatus(taskId, 'failed');
-        TaskWriter.appendNotes(filePath, `Failed: ${options.reason}`);
+        // Call service to fail task
+        const task = await taskService.failTask(taskId, options.reason);
 
         const response = successResponse({
-          taskId,
-          status: 'failed',
-          previousStatus: task.status,
+          taskId: task.id,
+          status: task.status,
           reason: options.reason,
-          alreadyFailed: task.status === 'failed',
         });
 
         outputResponse(response, options.json, (data) => {
-          if (data.alreadyFailed) {
-            console.log(chalk.yellow(`⚠ Task ${data.taskId} was already failed, reason updated`));
-          } else {
-            console.log(chalk.red(`✗ Task ${data.taskId} marked as failed`));
-          }
+          console.log(chalk.red(`✗ Task ${data.taskId} marked as failed`));
           console.log(`  Reason: ${data.reason}`);
         });
 
@@ -561,25 +492,22 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
     .description('Mark task as in progress')
     .option('--json', 'Output as JSON')
     .option('--dry-run', 'Preview changes without executing')
-    .action((taskId, options) => {
+    .action(async (taskId, options) => {
       try {
-        const filePath = indexManager.getTaskFilePath(taskId);
-
-        if (!filePath) {
-          handleError(Errors.taskNotFound(taskId), options.json);
-        }
-
-        const task = TaskParser.parseTaskFile(filePath);
-
         // Dry-run mode
         if (options.dryRun) {
+          const task = await taskService.getTask(taskId);
+          if (!task) {
+            handleError(Errors.taskNotFound(taskId), options.json);
+            return;
+          }
+
           const response = successResponse({
             dryRun: true,
             wouldUpdate: {
               taskId,
               currentStatus: task.status,
               newStatus: 'in_progress',
-              affectedFiles: [filePath],
             },
           });
           outputResponse(response, options.json, (data) => {
@@ -592,28 +520,12 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
           return;
         }
 
-        // Idempotent: Already in progress is not an error
-        if (task.status === 'in_progress') {
-          const response = successResponse({
-            taskId,
-            status: 'in_progress',
-            alreadyInProgress: true,
-            message: 'Task already in progress',
-          });
-          outputResponse(response, options.json, (data) => {
-            console.log(chalk.yellow(`⚠ Task ${taskId} is already in progress`));
-          });
-          process.exit(ExitCode.SUCCESS);
-          return;
-        }
-
-        TaskWriter.updateTaskStatus(filePath, 'in_progress');
-        indexManager.updateTaskStatus(taskId, 'in_progress');
+        // Call service to start task
+        const task = await taskService.startTask(taskId);
 
         const response = successResponse({
-          taskId,
-          status: 'in_progress',
-          previousStatus: task.status,
+          taskId: task.id,
+          status: task.status,
         });
 
         outputResponse(response, options.json, (data) => {
@@ -633,90 +545,24 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
     .requiredOption('--operations <json>', 'JSON array of operations')
     .option('--atomic', 'Rollback all on any failure (transactional)')
     .option('--json', 'Output as JSON')
-    .action((options) => {
+    .action(async (options) => {
       try {
+        // Parse operations
         let operations;
         try {
           operations = JSON.parse(options.operations);
         } catch (error) {
           handleError(Errors.invalidJson(error), options.json);
+          return;
         }
 
         if (!Array.isArray(operations)) {
           handleError(Errors.invalidInput('Operations must be a JSON array'), options.json);
+          return;
         }
 
-        const results: any[] = [];
-        const backupData: any[] = [];
-
-        for (const op of operations) {
-          try {
-            const { action, taskId, ...params } = op;
-
-            const filePath = indexManager.getTaskFilePath(taskId);
-            if (!filePath) {
-              throw new Error(`Task not found: ${taskId}`);
-            }
-
-            // Backup for atomic mode
-            if (options.atomic) {
-              const task = TaskParser.parseTaskFile(filePath);
-              backupData.push({ taskId, filePath, originalTask: task });
-            }
-
-            // Perform operation
-            let result: any = { taskId, action, success: true };
-
-            switch (action) {
-              case 'start':
-                TaskWriter.updateTaskStatus(filePath, 'in_progress');
-                indexManager.updateTaskStatus(taskId, 'in_progress');
-                result.status = 'in_progress';
-                break;
-
-              case 'done':
-                TaskWriter.updateTaskStatus(filePath, 'completed');
-                indexManager.updateTaskStatus(taskId, 'completed');
-                if (params.duration) {
-                  TaskWriter.appendNotes(filePath, `Completed in ${params.duration}`);
-                }
-                result.status = 'completed';
-                break;
-
-              case 'fail':
-                if (!params.reason) {
-                  throw new Error('Reason required for fail action');
-                }
-                TaskWriter.updateTaskStatus(filePath, 'failed');
-                indexManager.updateTaskStatus(taskId, 'failed');
-                TaskWriter.appendNotes(filePath, `Failed: ${params.reason}`);
-                result.status = 'failed';
-                result.reason = params.reason;
-                break;
-
-              default:
-                throw new Error(`Unknown action: ${action}`);
-            }
-
-            results.push(result);
-          } catch (error) {
-            results.push({
-              taskId: op.taskId,
-              action: op.action,
-              success: false,
-              error: error instanceof Error ? error.message : String(error),
-            });
-
-            // Rollback in atomic mode
-            if (options.atomic) {
-              for (const backup of backupData) {
-                TaskWriter.updateTaskStatus(backup.filePath, backup.originalTask.status);
-                indexManager.updateTaskStatus(backup.taskId, backup.originalTask.status);
-              }
-              handleError(Errors.invalidState(`Batch operation failed, rolled back: ${error}`), options.json);
-            }
-          }
-        }
+        // Call service to execute batch
+        const results = await taskService.batchOperations(operations, options.atomic || false);
 
         const allSuccessful = results.every(r => r.success);
         const response = successResponse({

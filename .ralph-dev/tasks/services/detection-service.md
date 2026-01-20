@@ -2,7 +2,7 @@
 id: services.detection-service
 module: services
 priority: 3
-status: pending
+status: completed
 estimatedMinutes: 30
 dependencies:
   - infrastructure.file-system
@@ -24,3 +24,7 @@ testRequirements:
 4. Use LanguageConfig domain model
 5. Unit tests with mock file system
 
+
+## Notes
+
+Completed in Implementation time

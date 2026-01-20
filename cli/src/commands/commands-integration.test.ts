@@ -359,6 +359,36 @@ describe('Commands Integration Tests', () => {
       expect(result.saved).toBe(true);
       expect(result.languageConfig.language).toBe('typescript');
     });
+
+    it('should detect and save to index with verification', async () => {
+      // Arrange - Create minimal project structure
+      fs.writeJSONSync(path.join(workspaceDir, 'package.json'), {
+        name: 'integration-test',
+        devDependencies: {
+          typescript: '^5.0.0',
+          vitest: '^1.0.0'
+        },
+      });
+      fs.writeFileSync(path.join(workspaceDir, 'tsconfig.json'), '{}');
+
+      // Act - Detect and save
+      const result = services.detectionService.detectAndSave();
+
+      // Assert - Result is correct
+      expect(result.saved).toBe(true);
+      expect(result.languageConfig.language).toBe('typescript');
+      expect(result.languageConfig.testFramework).toBe('vitest');
+
+      // Assert - Verify saved to index file
+      const indexPath = path.join(workspaceDir, '.ralph-dev', 'tasks', 'index.json');
+      expect(fs.existsSync(indexPath)).toBe(true);
+
+      const indexData = fs.readJSONSync(indexPath);
+      expect(indexData.metadata).toBeDefined();
+      expect(indexData.metadata.languageConfig).toBeDefined();
+      expect(indexData.metadata.languageConfig.language).toBe('typescript');
+      expect(indexData.metadata.languageConfig.testFramework).toBe('vitest');
+    });
   });
 
   describe('Service Integration', () => {
@@ -408,6 +438,188 @@ describe('Commands Integration Tests', () => {
       const task = await services.taskService.getTask('feature.implementation');
       expect(task?.status).toBe('completed');
       expect(finalState.phase).toBe('deliver');
+    });
+
+    it('should handle full breakdown phase workflow', async () => {
+      // Arrange - Initialize to breakdown phase
+      await services.stateService.initializeState('breakdown');
+
+      const prd = {
+        title: 'User Authentication',
+        description: 'Implement user auth system',
+        requirements: ['Login', 'Signup', 'Password reset'],
+      };
+
+      // Act - Set PRD
+      await services.stateService.setPrd(prd);
+
+      // Create multiple tasks from breakdown
+      const tasks = [
+        { id: 'auth.models', module: 'auth', priority: 1, description: 'User models' },
+        { id: 'auth.login', module: 'auth', priority: 2, description: 'Login endpoint', dependencies: ['auth.models'] },
+        { id: 'auth.signup', module: 'auth', priority: 2, description: 'Signup endpoint', dependencies: ['auth.models'] },
+      ];
+
+      for (const task of tasks) {
+        await services.taskService.createTask({
+          ...task,
+          acceptanceCriteria: [`${task.description} works`],
+        });
+      }
+
+      // Assert - All tasks created
+      const allTasks = await services.taskService.listTasks({});
+      expect(allTasks.tasks).toHaveLength(3);
+
+      // Assert - PRD is set
+      const state = await services.stateService.getState();
+      expect(state?.prd).toEqual(prd);
+
+      // Act - Transition to implement phase
+      const implementState = await services.stateService.transitionToPhase('implement');
+
+      // Assert - Phase changed
+      expect(implementState.phase).toBe('implement');
+    });
+
+    it('should handle heal phase workflow with errors', async () => {
+      // Arrange - Initialize to heal phase
+      await services.stateService.initializeState('heal');
+
+      // Create and fail a task
+      await services.taskService.createTask({
+        id: 'broken.task',
+        module: 'broken',
+        priority: 1,
+        description: 'Task that needs healing',
+        acceptanceCriteria: ['Should work'],
+      });
+
+      await services.taskService.startTask('broken.task');
+      await services.taskService.failTask('broken.task', 'Tests failed');
+
+      // Track errors in state
+      await services.stateService.addError({
+        message: 'Unit tests failed in broken.task',
+        code: 'TEST_FAILURE',
+      });
+
+      // Assert - Error tracked and task failed
+      const stateWithError = await services.stateService.getState();
+      expect(stateWithError?.errors).toHaveLength(1);
+
+      const failedTask = await services.taskService.getTask('broken.task');
+      expect(failedTask?.status).toBe('failed');
+
+      // Act - Create fix task to address the failure
+      await services.taskService.createTask({
+        id: 'broken.task.fix',
+        module: 'broken',
+        priority: 1,
+        description: 'Fix for broken task',
+        acceptanceCriteria: ['Tests pass'],
+      });
+
+      await services.taskService.startTask('broken.task.fix');
+      await services.taskService.completeTask('broken.task.fix', '15 minutes');
+
+      // Clear errors after successful fix
+      const clearedState = await services.stateService.clearErrors();
+
+      // Assert - Fix task completed, errors cleared
+      const fixTask = await services.taskService.getTask('broken.task.fix');
+      expect(fixTask?.status).toBe('completed');
+      expect(clearedState.errors).toHaveLength(0);
+    });
+
+    it('should handle multi-module project workflow', async () => {
+      // Arrange - Simulate project with multiple modules
+      await services.stateService.initializeState('implement');
+
+      // Create tasks across multiple modules
+      const modules = ['auth', 'api', 'ui', 'database'];
+      for (let i = 0; i < modules.length; i++) {
+        await services.taskService.createTask({
+          id: `${modules[i]}.setup`,
+          module: modules[i],
+          priority: i + 1,
+          description: `Setup ${modules[i]} module`,
+          acceptanceCriteria: [`${modules[i]} module initialized`],
+        });
+      }
+
+      // Act - Get tasks by module
+      const authTasks = await services.taskService.listTasks({ filter: { module: 'auth' } });
+      const apiTasks = await services.taskService.listTasks({ filter: { module: 'api' } });
+
+      // Assert - Correct module filtering
+      expect(authTasks.tasks).toHaveLength(1);
+      expect(authTasks.tasks[0].module).toBe('auth');
+      expect(apiTasks.tasks).toHaveLength(1);
+      expect(apiTasks.tasks[0].module).toBe('api');
+
+      // Act - Process tasks in priority order
+      const firstTask = await services.taskService.getNextTask();
+      expect(firstTask?.id).toBe('auth.setup');
+
+      await services.taskService.startTask('auth.setup');
+      await services.taskService.completeTask('auth.setup');
+
+      const secondTask = await services.taskService.getNextTask();
+      expect(secondTask?.id).toBe('api.setup');
+    });
+
+    it('should handle complete project lifecycle end-to-end', async () => {
+      // Phase 1: Clarify
+      await services.stateService.initializeState('clarify');
+      const prd = {
+        title: 'Todo App',
+        description: 'Simple todo application',
+        requirements: ['Create todo', 'List todos', 'Delete todo'],
+      };
+      await services.stateService.setPrd(prd);
+
+      // Phase 2: Breakdown
+      await services.stateService.transitionToPhase('breakdown');
+      const breakdownTasks = [
+        { id: 'setup.scaffold', module: 'setup', priority: 1 },
+        { id: 'api.create', module: 'api', priority: 2, dependencies: ['setup.scaffold'] },
+        { id: 'api.list', module: 'api', priority: 2, dependencies: ['setup.scaffold'] },
+        { id: 'ui.components', module: 'ui', priority: 3, dependencies: ['api.create', 'api.list'] },
+      ];
+
+      for (const task of breakdownTasks) {
+        await services.taskService.createTask({
+          ...task,
+          description: `Task ${task.id}`,
+          acceptanceCriteria: ['Works'],
+        });
+      }
+
+      // Phase 3: Implement
+      await services.stateService.transitionToPhase('implement');
+
+      // Execute tasks in order
+      let nextTask = await services.taskService.getNextTask();
+      while (nextTask) {
+        await services.taskService.startTask(nextTask.id);
+        await services.taskService.completeTask(nextTask.id, '10 minutes');
+        nextTask = await services.taskService.getNextTask();
+      }
+
+      // Verify all tasks completed
+      const allTasks = await services.taskService.listTasks({});
+      expect(allTasks.tasks.every(t => t.status === 'completed')).toBe(true);
+
+      // Phase 4: Deliver
+      const finalState = await services.stateService.transitionToPhase('deliver');
+      expect(finalState.phase).toBe('deliver');
+
+      // Final verification
+      const completedTasks = await services.taskService.listTasks({
+        filter: { status: 'completed' },
+      });
+      expect(completedTasks.tasks).toHaveLength(breakdownTasks.length);
     });
   });
 });

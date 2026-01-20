@@ -2,7 +2,7 @@
 id: services.saga-service
 module: services
 priority: 3
-status: pending
+status: completed
 estimatedMinutes: 30
 dependencies:
   - repositories.task-repository
@@ -24,3 +24,7 @@ testRequirements:
 3. Use repositories and git service
 4. Unit tests with mock dependencies
 
+
+## Notes
+
+Completed in Implementation time

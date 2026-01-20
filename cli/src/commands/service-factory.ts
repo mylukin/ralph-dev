@@ -8,6 +8,7 @@
 import * as path from 'path';
 import { TaskService, ITaskService } from '../services/task-service';
 import { StateService, IStateService } from '../services/state-service';
+import { StatusService, IStatusService } from '../services/status-service';
 import { DetectionService, IDetectionService } from '../services/detection-service';
 import { SagaService, ISagaService } from '../services/saga-service';
 import { HealingService, IHealingService } from '../services/healing-service';
@@ -25,6 +26,7 @@ import { ILogger } from '../infrastructure/logger';
 export interface ServiceContainer {
   taskService: ITaskService;
   stateService: IStateService;
+  statusService: IStatusService;
   detectionService: IDetectionService;
   sagaService: ISagaService;
   healingService: IHealingService;
@@ -47,6 +49,7 @@ export function createServices(workspaceDir: string): ServiceContainer {
   // Create services with dependency injection
   const taskService = new TaskService(taskRepository, stateRepository, logger);
   const stateService = new StateService(stateRepository, logger);
+  const statusService = new StatusService(taskRepository, stateRepository, logger);
 
   // Detection service
   const indexManager = new IndexManager(tasksDir);
@@ -61,7 +64,7 @@ export function createServices(workspaceDir: string): ServiceContainer {
   const sagaService = new SagaService(logger, workspaceDir);
 
   // Healing service with circuit breaker
-  const healingService = new HealingService(logger, {
+  const healingService = new HealingService(logger, fileSystem, workspaceDir, {
     failureThreshold: 5,
     timeout: 60000,
     successThreshold: 2,
@@ -70,9 +73,58 @@ export function createServices(workspaceDir: string): ServiceContainer {
   return {
     taskService,
     stateService,
+    statusService,
     detectionService,
     sagaService,
     healingService,
     logger,
   };
+}
+
+/**
+ * Create TaskService (convenience function for task commands)
+ */
+export function createTaskService(workspaceDir: string): ITaskService {
+  const logger = new ConsoleLogger();
+  const fileSystem = new FileSystemService();
+  const tasksDir = path.join(workspaceDir, '.ralph-dev', 'tasks');
+  const taskRepository = new FileSystemTaskRepository(fileSystem, tasksDir);
+  const stateRepository = new FileSystemStateRepository(fileSystem, workspaceDir);
+
+  return new TaskService(taskRepository, stateRepository, logger);
+}
+
+/**
+ * Create StatusService (convenience function for status command)
+ */
+export function createStatusService(workspaceDir: string): IStatusService {
+  const logger = new ConsoleLogger();
+  const fileSystem = new FileSystemService();
+  const tasksDir = path.join(workspaceDir, '.ralph-dev', 'tasks');
+  const taskRepository = new FileSystemTaskRepository(fileSystem, tasksDir);
+  const stateRepository = new FileSystemStateRepository(fileSystem, workspaceDir);
+
+  return new StatusService(taskRepository, stateRepository, logger);
+}
+
+/**
+ * Create StateService (convenience function for state command)
+ */
+export function createStateService(workspaceDir: string): IStateService {
+  const logger = new ConsoleLogger();
+  const fileSystem = new FileSystemService();
+  const stateRepository = new FileSystemStateRepository(fileSystem, workspaceDir);
+
+  return new StateService(stateRepository, logger);
+}
+
+/**
+ * Create DetectionService (convenience function for detect command)
+ */
+export function createDetectionService(workspaceDir: string): IDetectionService {
+  const logger = new ConsoleLogger();
+  const tasksDir = path.join(workspaceDir, '.ralph-dev', 'tasks');
+  const indexManager = new IndexManager(tasksDir);
+
+  return new DetectionService(LanguageDetector, indexManager, logger, workspaceDir);
 }

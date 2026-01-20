@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import { registerStateCommands } from './commands/state';
 import { registerTaskCommands } from './commands/tasks';
+import { registerStatusCommand } from './commands/status';
 import { registerDetectCommand } from './commands/detect';
 import { registerDetectAICommand } from './commands/detect-ai';
 import { version } from '../package.json';
@@ -20,6 +21,7 @@ program
 // Register command groups
 registerStateCommands(program, workspaceDir);
 registerTaskCommands(program, workspaceDir);
+registerStatusCommand(program, workspaceDir);
 registerDetectCommand(program, workspaceDir);
 registerDetectAICommand(program, workspaceDir);
 

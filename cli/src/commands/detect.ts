@@ -1,11 +1,9 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { LanguageDetector } from '../language/detector';
-import { IndexManager } from '../core/index-manager';
-import * as path from 'path';
 import { ExitCode } from '../core/exit-codes';
 import { handleError, Errors } from '../core/error-handler';
 import { successResponse, outputResponse } from '../core/response-wrapper';
+import { createDetectionService } from './service-factory';
 
 export function registerDetectCommand(program: Command, workspaceDir: string): void {
   program
@@ -15,23 +13,14 @@ export function registerDetectCommand(program: Command, workspaceDir: string): v
     .option('--save', 'Save to index metadata')
     .action((options) => {
       try {
-        const languageConfig = LanguageDetector.detect(workspaceDir);
+        const detectionService = createDetectionService(workspaceDir);
 
-        const response = successResponse({
-          languageConfig,
-          saved: false,
-        });
+        // Use detectAndSave if --save flag is present, otherwise just detect
+        const result = options.save
+          ? detectionService.detectAndSave()
+          : { languageConfig: detectionService.detect(), saved: false };
 
-        if (options.save && response.data) {
-          try {
-            const tasksDir = path.join(workspaceDir, '.ralph-dev', 'tasks');
-            const indexManager = new IndexManager(tasksDir);
-            indexManager.updateMetadata({ languageConfig });
-            response.data.saved = true;
-          } catch (error) {
-            handleError(Errors.fileSystemError('Failed to save language config', error), options.json);
-          }
-        }
+        const response = successResponse(result);
 
         outputResponse(response, options.json, (data) => {
           console.log(chalk.bold('Project Configuration:'));

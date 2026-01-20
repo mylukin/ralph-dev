@@ -277,26 +277,30 @@ Using React Hook Form for validation.
 
 ## Architecture
 
+Ralph-dev CLI uses a **layered architecture** with clear separation of concerns:
+
 ```
-cli/
-├── src/
-│   ├── commands/
-│   │   ├── state.ts          # State management commands
-│   │   ├── tasks.ts          # Task CRUD and lifecycle
-│   │   ├── detect.ts         # Language detection
-│   │   └── detect-ai.ts      # AI-powered detection
-│   ├── core/
-│   │   ├── task-parser.ts    # Parse YAML frontmatter + markdown
-│   │   ├── task-writer.ts    # Write/update task files
-│   │   └── index-manager.ts  # Manage tasks/index.json
-│   ├── language/
-│   │   └── detector.ts       # Multi-language detection logic
-│   └── index.ts              # CLI entry point
-├── bin/
-│   └── ralph-dev.js          # Shebang script
-├── dist/                     # Compiled output
-└── package.json
+┌─────────────────────────────────────────┐
+│   Commands (CLI Interface)              │  ← Thin layer: parse args, format output
+├─────────────────────────────────────────┤
+│   Services (Business Logic)             │  ← Core logic: task management, state, healing
+├─────────────────────────────────────────┤
+│   Repositories (Data Access)            │  ← Abstract persistence: tasks, state
+├─────────────────────────────────────────┤
+│   Domain Models (Entities)              │  ← Rich entities with behavior
+├─────────────────────────────────────────┤
+│   Infrastructure (File System, Logger)  │  ← Technical services with retry logic
+└─────────────────────────────────────────┘
 ```
+
+**Key architectural features:**
+- **Dependency Injection**: Services and repositories are injected via constructors for testability
+- **Repository Pattern**: All data access abstracted behind interfaces
+- **Rich Domain Models**: Entities enforce business rules and state transitions
+- **Circuit Breaker**: Prevents cascade failures in healing phase (auto-stops after 5 failures)
+- **Saga Pattern**: Ensures atomic multi-step operations with automatic rollback
+
+**See [cli/CLAUDE.md](cli/CLAUDE.md) for detailed architecture documentation, design patterns, and development guidelines.**
 
 ## Development
 

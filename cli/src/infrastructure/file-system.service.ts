@@ -101,4 +101,19 @@ export class FileSystemService implements IFileSystem {
       }
     );
   }
+
+  /**
+   * Append data to file with retry logic
+   * @param path - Path to the file
+   * @param data - Data to append (string or Buffer)
+   * @param options - Write options (encoding)
+   */
+  async appendFile(path: string, data: string | Buffer, options?: WriteFileOptions): Promise<void> {
+    return withRetry(
+      () => fs.appendFile(path, data, options),
+      {
+        retryableErrors: ['EBUSY', 'ENOENT', 'EAGAIN', 'ETIMEDOUT'],
+      }
+    );
+  }
 }
