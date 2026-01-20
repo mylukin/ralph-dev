@@ -4,7 +4,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 
 describe('TaskParser', () => {
-  const testDir = path.join(__dirname, '../../test-fixtures');
+  const testDir = path.join(__dirname, '../../test-fixtures-task-parser');
   const validTaskFile = path.join(testDir, 'valid-task.md');
   const invalidTaskFile = path.join(testDir, 'invalid-task.md');
   const indexFile = path.join(testDir, 'index.json');

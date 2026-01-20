@@ -231,6 +231,87 @@ describe('LanguageDetector', () => {
     });
   });
 
+  describe('Kotlin detection', () => {
+    it('should detect Kotlin project with Gradle wrapper', () => {
+      const projectDir = path.join(testDir, 'kotlin-project-wrapper');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'build.gradle.kts'), 'plugins { kotlin("jvm") }');
+      fs.writeFileSync(path.join(projectDir, 'gradlew'), '#!/bin/bash');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('kotlin');
+      expect(config.buildTool).toBe('gradle');
+      expect(config.verifyCommands).toContain('./gradlew test');
+      expect(config.verifyCommands).toContain('./gradlew build');
+    });
+
+    it('should detect Kotlin project without Gradle wrapper', () => {
+      const projectDir = path.join(testDir, 'kotlin-project-no-wrapper');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'build.gradle.kts'), 'plugins { kotlin("jvm") }');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('kotlin');
+      expect(config.buildTool).toBe('gradle');
+      expect(config.verifyCommands).toContain('gradle test');
+      expect(config.verifyCommands).toContain('gradle build');
+    });
+  });
+
+  describe('Scala detection', () => {
+    it('should detect Scala project with sbt', () => {
+      const projectDir = path.join(testDir, 'scala-project');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'build.sbt'), 'name := "test"');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('scala');
+      expect(config.testFramework).toBe('scalatest');
+      expect(config.buildTool).toBe('sbt');
+      expect(config.verifyCommands).toContain('sbt test');
+      expect(config.verifyCommands).toContain('sbt compile');
+    });
+  });
+
+  describe('C++ detection', () => {
+    it('should detect C++ project with CMake', () => {
+      const projectDir = path.join(testDir, 'cpp-cmake-project');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'CMakeLists.txt'), 'cmake_minimum_required(VERSION 3.0)');
+      fs.writeFileSync(path.join(projectDir, 'main.cpp'), '// cpp file');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('cpp');
+      expect(config.buildTool).toBe('cmake');
+      expect(config.verifyCommands).toContain('cmake -B build');
+      expect(config.verifyCommands).toContain('cmake --build build');
+      expect(config.verifyCommands).toContain('ctest --test-dir build');
+    });
+
+    it('should detect C++ project with Makefile', () => {
+      const projectDir = path.join(testDir, 'cpp-make-project');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'Makefile'), 'all:\n\tg++ main.cpp');
+      fs.writeFileSync(path.join(projectDir, 'main.cpp'), '// cpp file');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('cpp');
+      expect(config.buildTool).toBe('make');
+      expect(config.verifyCommands).toContain('make');
+      expect(config.verifyCommands).toContain('make test');
+    });
+  });
+
   describe('Unknown project', () => {
     it('should return unknown for unrecognized project', () => {
       const projectDir = path.join(testDir, 'unknown-project');

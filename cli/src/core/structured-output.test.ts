@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { StructuredOutputParser } from './structured-output';
+import { StructuredOutputParser, validateImplementationResult } from './structured-output';
 
 describe('StructuredOutputParser', () => {
   describe('parseImplementationResult - Tool Calling Format', () => {
@@ -267,6 +267,249 @@ notes: This is a long note
       const result = StructuredOutputParser.parseImplementationResult(output);
 
       expect(result.confidence_score).toBe(1.0);
+    });
+  });
+
+  describe('YAML format parsing with delimiters', () => {
+    it('should parse YAML with boolean string values', () => {
+      const output = `
+---IMPLEMENTATION RESULT---
+task_id: test
+status: success
+verification_passed: true
+tests_passing: 1/1
+coverage: 100
+files_modified: test.ts
+duration: 1m
+acceptance_criteria_met: 1/1
+notes: Test complete
+---END IMPLEMENTATION RESULT---
+`;
+
+      const result = StructuredOutputParser.parseImplementationResult(output);
+
+      expect(result.verification_passed).toBe(true);
+      expect(result.status).toBe('success');
+    });
+
+    it('should parse YAML with false boolean', () => {
+      const output = `
+---IMPLEMENTATION RESULT---
+task_id: test
+status: failed
+verification_passed: false
+tests_passing: 0/1
+coverage: 0
+files_modified: test.ts
+duration: 1m
+acceptance_criteria_met: 0/1
+notes: Test failed
+---END IMPLEMENTATION RESULT---
+`;
+
+      const result = StructuredOutputParser.parseImplementationResult(output);
+
+      expect(result.verification_passed).toBe(false);
+      expect(result.status).toBe('failed');
+    });
+
+    it('should parse YAML with numeric values', () => {
+      const output = `
+---IMPLEMENTATION RESULT---
+task_id: test
+status: success
+verification_passed: true
+coverage: 85
+confidence_score: 0.9
+tests_passing: 10/10
+files_modified: test.ts
+duration: 2m
+acceptance_criteria_met: 1/1
+notes: High coverage achieved
+---END IMPLEMENTATION RESULT---
+`;
+
+      const result = StructuredOutputParser.parseImplementationResult(output);
+
+      expect(result.coverage).toBe(85);
+      expect(result.confidence_score).toBe(0.9);
+    });
+
+    it('should parse YAML with JSON array strings', () => {
+      const output = `
+---IMPLEMENTATION RESULT---
+task_id: test
+status: success
+verification_passed: true
+files_modified: ["file1.ts","file2.ts"]
+tests_passing: 10/10
+coverage: 90
+duration: 3m
+acceptance_criteria_met: 2/2
+notes: Multiple files modified
+---END IMPLEMENTATION RESULT---
+`;
+
+      const result = StructuredOutputParser.parseImplementationResult(output);
+
+      expect(result.files_modified).toEqual(['file1.ts', 'file2.ts']);
+    });
+
+    it('should handle comma-separated arrays for files_modified', () => {
+      const output = `
+---IMPLEMENTATION RESULT---
+task_id: test
+status: success
+verification_passed: true
+files_modified: file1.ts, file2.ts, file3.ts
+tests_passing: 15/15
+coverage: 95
+duration: 4m
+acceptance_criteria_met: 3/3
+notes: Three files updated
+---END IMPLEMENTATION RESULT---
+`;
+
+      const result = StructuredOutputParser.parseImplementationResult(output);
+
+      expect(result.files_modified).toEqual(['file1.ts', 'file2.ts', 'file3.ts']);
+    });
+
+    it('should preserve slash format for tests_passing', () => {
+      const output = `
+---IMPLEMENTATION RESULT---
+task_id: test
+status: success
+verification_passed: true
+tests_passing: 15/15
+acceptance_criteria_met: 3/3
+coverage: 100
+files_modified: test.ts
+duration: 2m
+notes: All tests passing
+---END IMPLEMENTATION RESULT---
+`;
+
+      const result = StructuredOutputParser.parseImplementationResult(output);
+
+      expect(result.tests_passing).toBe('15/15');
+      expect(result.acceptance_criteria_met).toBe('3/3');
+    });
+
+    it('should handle invalid JSON in array field gracefully', () => {
+      const output = `
+---IMPLEMENTATION RESULT---
+task_id: test
+status: success
+verification_passed: true
+files_modified: [invalid json
+tests_passing: 1/1
+coverage: 100
+duration: 1m
+acceptance_criteria_met: 1/1
+notes: Invalid JSON handling
+---END IMPLEMENTATION RESULT---
+`;
+
+      const result = StructuredOutputParser.parseImplementationResult(output);
+
+      // When JSON parsing fails, it treats as comma-separated array
+      // Since there's no comma, it returns single-element array
+      expect(result.files_modified).toEqual(['[invalid json']);
+    });
+  });
+
+  describe('validateImplementationResult', () => {
+    it('should validate a complete valid result', () => {
+      const result = {
+        task_id: 'test.task',
+        status: 'success' as const,
+        verification_passed: true,
+        tests_passing: '10/10',
+        coverage: 95,
+        files_modified: ['test.ts'],
+        duration: '5m',
+        acceptance_criteria_met: '3/3',
+        confidence_score: 0.95,
+        low_confidence_decisions: [],
+        notes: 'All good',
+      };
+
+      const validation = validateImplementationResult(result);
+
+      expect(validation.valid).toBe(true);
+      expect(validation.errors).toHaveLength(0);
+    });
+
+    it('should detect missing task_id', () => {
+      const result = {
+        status: 'success' as const,
+        verification_passed: true,
+        notes: 'test',
+      } as any;
+
+      const validation = validateImplementationResult(result);
+
+      expect(validation.valid).toBe(false);
+      expect(validation.errors).toContain('Missing task_id');
+    });
+
+    it('should detect missing status', () => {
+      const result = {
+        task_id: 'test',
+        verification_passed: true,
+        notes: 'test',
+      } as any;
+
+      const validation = validateImplementationResult(result);
+
+      expect(validation.valid).toBe(false);
+      expect(validation.errors).toContain('Missing status (must be "success" or "failed")');
+    });
+
+    it('should detect missing verification_passed', () => {
+      const result = {
+        task_id: 'test',
+        status: 'success' as const,
+        notes: 'test',
+      } as any;
+
+      const validation = validateImplementationResult(result);
+
+      expect(validation.valid).toBe(false);
+      expect(validation.errors).toContain('Missing verification_passed boolean');
+    });
+
+    it('should warn about inconsistent status and verification', () => {
+      const result = {
+        task_id: 'test',
+        status: 'success' as const,
+        verification_passed: false,
+        notes: 'Inconsistent state',
+      };
+
+      const validation = validateImplementationResult(result);
+
+      expect(validation.valid).toBe(true);
+      expect(validation.warnings.length).toBeGreaterThan(0);
+      expect(validation.warnings[0]).toContain('inconsistent');
+    });
+
+    it('should warn about low confidence score', () => {
+      const result = {
+        task_id: 'test',
+        status: 'success' as const,
+        verification_passed: true,
+        notes: 'Low confidence',
+        confidence_score: 0.5,
+        low_confidence_decisions: ['Decision 1', 'Decision 2'],
+      };
+
+      const validation = validateImplementationResult(result);
+
+      expect(validation.valid).toBe(true);
+      expect(validation.warnings.length).toBeGreaterThan(0);
+      expect(validation.warnings[0]).toContain('Low confidence score');
     });
   });
 });
