@@ -141,19 +141,20 @@ For each user story or requirement, create 1-3 atomic tasks.
 **CRITICAL:** Create tasks sequentially, one at a time, to ensure immediate persistence to disk. This approach is 100% context-compression resilient.
 
 ```bash
-# Initialize tasks directory and index with JSON output
-INIT_RESULT=$(ralph-dev tasks init \
+# Initialize tasks directory and index
+# Note: tasks init doesn't support --json flag, check exit code instead
+ralph-dev tasks init \
   --project-goal "$(extract_goal_from_prd)" \
   --language "typescript" \
-  --framework "Next.js" \
-  --json 2>&1)
+  --framework "Next.js"
 
-# Check initialization success (context-compression safe)
-if echo "$INIT_RESULT" | jq -e '.success == true' > /dev/null 2>&1; then
+INIT_STATUS=$?
+
+# Check initialization success via exit code
+if [ $INIT_STATUS -eq 0 ]; then
   echo "✓ Tasks system initialized"
 else
-  echo "✗ Failed to initialize tasks"
-  echo "$INIT_RESULT" | jq -r '.error.message' 2>&1 || echo "$INIT_RESULT"
+  echo "✗ Failed to initialize tasks (exit code: $INIT_STATUS)"
   exit 1
 fi
 

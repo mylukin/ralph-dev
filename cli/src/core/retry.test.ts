@@ -122,17 +122,20 @@ describe('withRetry', () => {
         Object.assign(new Error('Always fails'), { code: 'EBUSY' })
       );
 
-      // Act & Assert - Should throw after 3 attempts
-      await expect(async () => {
-        const promise = withRetry(operation, { maxAttempts: 3 });
+      // Act - capture rejection to prevent unhandled rejection warning
+      let caughtError: Error | null = null;
+      const promise = withRetry(operation, { maxAttempts: 3 }).catch((e) => {
+        caughtError = e;
+      });
 
-        // Advance timers for all retry attempts
-        await vi.advanceTimersByTimeAsync(100); // First retry
-        await vi.advanceTimersByTimeAsync(200); // Second retry
+      // Advance timers for all retry attempts
+      await vi.advanceTimersByTimeAsync(100); // First retry
+      await vi.advanceTimersByTimeAsync(200); // Second retry
+      await promise;
 
-        await promise;
-      }).rejects.toThrow('Always fails');
-
+      // Assert - Should throw after 3 attempts
+      expect(caughtError).not.toBeNull();
+      expect(caughtError!.message).toBe('Always fails');
       expect(operation).toHaveBeenCalledTimes(3);
     });
 
@@ -244,19 +247,22 @@ describe('withRetry', () => {
         Object.assign(new Error('Fail'), { code: 'EBUSY' })
       );
 
-      // Act & Assert
-      await expect(async () => {
-        const promise = withRetry(operation, { maxAttempts: 5 });
+      // Act - capture rejection to prevent unhandled rejection warning
+      let caughtError: Error | null = null;
+      const promise = withRetry(operation, { maxAttempts: 5 }).catch((e) => {
+        caughtError = e;
+      });
 
-        // Advance timers for all retry attempts
-        await vi.advanceTimersByTimeAsync(100);
-        await vi.advanceTimersByTimeAsync(200);
-        await vi.advanceTimersByTimeAsync(400);
-        await vi.advanceTimersByTimeAsync(800);
+      // Advance timers for all retry attempts
+      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(400);
+      await vi.advanceTimersByTimeAsync(800);
+      await promise;
 
-        await promise;
-      }).rejects.toThrow('Fail');
-
+      // Assert
+      expect(caughtError).not.toBeNull();
+      expect(caughtError!.message).toBe('Fail');
       expect(operation).toHaveBeenCalledTimes(5);
     });
 
@@ -345,12 +351,17 @@ describe('withRetry', () => {
       );
       const operation = vi.fn().mockRejectedValue(originalError);
 
-      // Act & Assert
-      await expect(async () => {
-        const promise = withRetry(operation, { maxAttempts: 2 });
-        await vi.advanceTimersByTimeAsync(100);
-        await promise;
-      }).rejects.toThrow('Original error message');
+      // Act - capture rejection to prevent unhandled rejection warning
+      let caughtError: Error | null = null;
+      const promise = withRetry(operation, { maxAttempts: 2 }).catch((e) => {
+        caughtError = e;
+      });
+      await vi.advanceTimersByTimeAsync(100);
+      await promise;
+
+      // Assert
+      expect(caughtError).not.toBeNull();
+      expect(caughtError!.message).toBe('Original error message');
     });
 
     it('should preserve error properties', async () => {

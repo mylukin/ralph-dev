@@ -617,4 +617,4 @@ Verification Commands:
 This skill is invoked by:
 - User running: `/detect-language`
 - Ralph-dev orchestrator during initialization
-- CLI command: `ralph-dev detect --ai`
+- CLI command: `ralph-dev detect-ai` (for AI-powered detection) or `ralph-dev detect` (for template-based detection)

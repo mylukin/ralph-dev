@@ -1,63 +1,59 @@
 /**
  * Console logger implementation
  *
- * Implements ILogger interface by writing to console methods.
- * This is a fire-and-forget implementation with no retry logic.
+ * Implements ILogger interface by writing to stderr.
+ * This follows Unix convention: stdout for program output, stderr for diagnostics.
+ * This keeps stdout clean for JSON output when using --json flag.
  */
 
 import { ILogger } from './logger';
 
 /**
- * ConsoleLogger writes log messages to the console
+ * Format log output with optional metadata
+ */
+function formatLog(message: string, meta?: Record<string, any>): string {
+  if (meta !== undefined) {
+    return `${message} ${JSON.stringify(meta)}`;
+  }
+  return message;
+}
+
+/**
+ * ConsoleLogger writes log messages to stderr
  *
- * Each log level maps to the corresponding console method:
- * - debug → console.debug
- * - info → console.info
- * - warn → console.warn
- * - error → console.error
+ * All log levels write to stderr to keep stdout clean for program output.
+ * This is essential for CLI tools that support --json output.
  */
 export class ConsoleLogger implements ILogger {
   /**
-   * Log debug-level message
+   * Log debug-level message to stderr
    */
   debug(message: string, meta?: Record<string, any>): void {
-    if (meta !== undefined) {
-      console.debug(message, meta);
-    } else {
-      console.debug(message);
-    }
+    console.error(formatLog(message, meta));
   }
 
   /**
-   * Log info-level message
+   * Log info-level message to stderr
    */
   info(message: string, meta?: Record<string, any>): void {
-    if (meta !== undefined) {
-      console.info(message, meta);
-    } else {
-      console.info(message);
-    }
+    console.error(formatLog(message, meta));
   }
 
   /**
-   * Log warning-level message
+   * Log warning-level message to stderr
    */
   warn(message: string, meta?: Record<string, any>): void {
-    if (meta !== undefined) {
-      console.warn(message, meta);
-    } else {
-      console.warn(message);
-    }
+    console.error(formatLog(message, meta));
   }
 
   /**
-   * Log error-level message
+   * Log error-level message to stderr
    */
   error(message: string, error?: Error | Record<string, any>): void {
-    if (error !== undefined) {
-      console.error(message, error);
+    if (error instanceof Error) {
+      console.error(`${message}: ${error.message}`);
     } else {
-      console.error(message);
+      console.error(formatLog(message, error));
     }
   }
 }

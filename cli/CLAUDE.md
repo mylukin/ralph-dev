@@ -181,21 +181,21 @@ describe('MyService', () => {
 ## Development Commands
 
 ### Build and Test
+
+**IMPORTANT:** Always use `CI=true` when running tests to prevent interactive/watch mode which can hang the process.
+
 ```bash
 # Development with watch mode
 npm run dev
 
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm test:watch
+# Run all tests (MUST use CI=true)
+CI=true npm test
 
 # Run single test file
-npx vitest run src/core/task-parser.test.ts
+CI=true npx vitest run src/core/task-parser.test.ts
 
 # Run tests with coverage
-npx vitest run --coverage
+CI=true npx vitest run --coverage
 
 # Build for production
 npm run build

@@ -64,7 +64,7 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
         const stateService = createStateService(workspaceDir);
 
         // Validate phase
-        const validPhases: Phase[] = ['clarify', 'breakdown', 'implement', 'heal', 'deliver'];
+        const validPhases: Phase[] = ['clarify', 'breakdown', 'implement', 'heal', 'deliver', 'complete'];
         if (!validPhases.includes(options.phase)) {
           handleError(
             Errors.invalidInput(`Invalid phase "${options.phase}". Valid phases: ${validPhases.join(', ')}`),
@@ -132,7 +132,7 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
 
         // Validate and prepare phase update
         if (options.phase) {
-          const validPhases: Phase[] = ['clarify', 'breakdown', 'implement', 'heal', 'deliver'];
+          const validPhases: Phase[] = ['clarify', 'breakdown', 'implement', 'heal', 'deliver', 'complete'];
           if (!validPhases.includes(options.phase)) {
             handleError(
               Errors.invalidInput(`Invalid phase "${options.phase}". Valid phases: ${validPhases.join(', ')}`),
