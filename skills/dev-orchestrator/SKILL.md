@@ -179,41 +179,18 @@ while true; do
 done
 ```
 
-### Phase 1: CLARIFY (Interactive)
+### Phase 1: CLARIFY (Interactive + Context-Aware)
 
-**Function: execute_phase_1_clarify**
+**CRITICAL**: Phase 1 extracts context from conversation history before asking questions. This preserves UI designs, data models, and decisions discussed before `/ralph-dev` was invoked.
 
 ```bash
 execute_phase_1_clarify() {
-  echo "🚀 Starting Ralph-dev..."
-  echo ""
-  echo "Requirement: $USER_REQUIREMENT"
-  echo "Mode: Full autonomous development"
-  echo "Phases: 5 (Clarify → Breakdown → Implement → Heal → Deliver)"
-  echo ""
-  echo "Phase 1/5: Clarifying requirements..."
-  echo ""
-
-  # Delegate to phase-1-clarify skill using Task tool
-  # NOTE: This is placeholder - actual implementation uses Task tool
-  # Use the Task tool to invoke:
-  #   subagent_type: "phase-1-clarify"
-  #   prompt: "User requirement: $USER_REQUIREMENT
-  #
-  #   Execute requirement clarification:
-  #   1. Ask 3-5 structured questions with lettered options
-  #   2. Generate detailed PRD from answers
-  #   3. Save to .ralph-dev/prd.md
-  #   4. Return completion signal"
-
-  # Wait for phase-1-clarify to complete
-  # Expected output:
-  # ---PHASE RESULT---
-  # phase: clarify
-  # status: complete
-  # output_file: .ralph-dev/prd.md
-  # next_phase: breakdown
-  # ---END PHASE RESULT---
+  # Invoke phase-1-clarify skill via Task tool
+  # Key behaviors:
+  # 1. Extract existing context from conversation (UI, data, API, flows, decisions)
+  # 2. Only ask questions for GAPS
+  # 3. Generate PRD preserving all discussed details
+  # 4. Save to .ralph-dev/prd.md
 
   # Verify PRD was created
   if [ ! -f ".ralph-dev/prd.md" ]; then
@@ -221,10 +198,7 @@ execute_phase_1_clarify() {
     exit 1
   fi
 
-  # Update state to breakdown (phase completed successfully)
   ralph-dev state update --phase breakdown
-  echo "✅ Phase 1 complete: PRD generated"
-  echo ""
 }
 ```
 

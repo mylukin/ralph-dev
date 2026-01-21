@@ -39,6 +39,10 @@ args: "$ARGUMENTS"
 - Session state persists in `.ralph-dev/` directory for resumption
 - All extensive documentation is in `docs/ralph-dev-guide.md`
 
+## Context-Aware Clarify Phase
+
+The clarify phase extracts context from the **full conversation history**. If you discussed UI layouts, data models, or design decisions before running `/ralph-dev`, those details are automatically preserved in the PRD.
+
 ## Error Handling
 
 - If no arguments provided for new session: Ask user to provide a requirement
