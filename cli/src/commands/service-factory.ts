@@ -44,7 +44,7 @@ export function createServices(workspaceDir: string): ServiceContainer {
   const stateRepository = new FileSystemStateRepository(fileSystem, workspaceDir);
 
   // Create services with dependency injection
-  const taskService = new TaskService(taskRepository, stateRepository, logger);
+  const taskService = new TaskService(taskRepository, stateRepository, logger, fileSystem, workspaceDir);
   const stateService = new StateService(stateRepository, logger, fileSystem, workspaceDir);
   const statusService = new StatusService(taskRepository, stateRepository, logger);
 
@@ -76,7 +76,7 @@ export function createTaskService(workspaceDir: string): ITaskService {
   const taskRepository = new FileSystemTaskRepository(fileSystem, tasksDir);
   const stateRepository = new FileSystemStateRepository(fileSystem, workspaceDir);
 
-  return new TaskService(taskRepository, stateRepository, logger);
+  return new TaskService(taskRepository, stateRepository, logger, fileSystem, workspaceDir);
 }
 
 /**

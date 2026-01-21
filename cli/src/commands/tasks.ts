@@ -22,7 +22,13 @@ function formatNextTaskOutput(task: Task, context: any): void {
 
   if (context.git.branch) {
     console.log(`│ ${chalk.gray('Git Branch:')} ${chalk.green(context.git.branch)}`);
-    console.log(`│ ${chalk.gray('Last Commit:')} ${chalk.yellow(context.git.lastCommit.hash)} "${context.git.lastCommit.message.slice(0, 35)}" ${chalk.gray(context.git.lastCommit.time)}`);
+    if (context.git.recentCommits && context.git.recentCommits.length > 0) {
+      console.log(`│ ${chalk.gray('Recent Commits:')}`);
+      context.git.recentCommits.forEach((commit: any, index: number) => {
+        const prefix = index === 0 ? '  └─' : '    ';
+        console.log(`│ ${prefix} ${chalk.yellow(commit.hash)} "${commit.message.slice(0, 35)}" ${chalk.gray(commit.time)}`);
+      });
+    }
   }
 
   if (context.state) {

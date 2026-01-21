@@ -13,15 +13,20 @@ import { Task } from '../domain/task-entity';
 import * as path from 'path';
 
 /**
+ * Git commit information
+ */
+export interface GitCommit {
+  hash: string;
+  message: string;
+  time: string;
+}
+
+/**
  * Git information structure
  */
 export interface GitInfo {
   branch?: string;
-  lastCommit?: {
-    hash: string;
-    message: string;
-    time: string;
-  };
+  recentCommits?: GitCommit[];
   error?: string;
 }
 
@@ -132,12 +137,17 @@ export class ContextService implements IContextService {
   getGitInfo(): GitInfo {
     try {
       const gitBranch = this.gitExecutor.exec('git branch --show-current');
-      const gitLog = this.gitExecutor.exec('git log -1 --pretty=format:"%h|%s|%ar"');
-      const [hash, message, time] = gitLog.split('|');
+      // Get last 5 commits, each on a separate line
+      const gitLog = this.gitExecutor.exec('git log -5 --pretty=format:"%h|%s|%ar"');
+
+      const recentCommits: GitCommit[] = gitLog.split('\n').map((line) => {
+        const [hash, message, time] = line.split('|');
+        return { hash, message, time };
+      });
 
       return {
         branch: gitBranch,
-        lastCommit: { hash, message, time },
+        recentCommits,
       };
     } catch {
       return { error: 'Not a git repository or no commits' };

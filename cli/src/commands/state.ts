@@ -224,11 +224,12 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
   state
     .command('archive')
     .description('Archive current session to .ralph-dev/archive/ and clear state')
+    .option('--force', 'Force archive even if session is incomplete')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
         const stateService = createStateService(workspaceDir);
-        const result = await stateService.archiveSession();
+        const result = await stateService.archiveSession({ force: options.force });
 
         const response = successResponse(result);
 
@@ -237,6 +238,10 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
             console.log(chalk.green('✓ Session archived'));
             console.log(chalk.gray(`  Location: ${data.archivePath}`));
             console.log(chalk.gray(`  Files: ${data.files.join(', ')}`));
+          } else if (data.blocked) {
+            console.log(chalk.yellow('⚠ Archive blocked'));
+            console.log(chalk.yellow(`  ${data.blockedReason}`));
+            console.log(chalk.gray(`  Current phase: ${data.currentPhase}`));
           } else {
             console.log(chalk.yellow('No session data to archive'));
           }

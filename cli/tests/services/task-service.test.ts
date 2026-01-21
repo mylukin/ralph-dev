@@ -846,4 +846,136 @@ describe('TaskService', () => {
       expect(results[0].error).toContain('Unknown action');
     });
   });
+
+  describe('progress logging', () => {
+    let mockFileSystem: {
+      exists: ReturnType<typeof import('vitest').vi.fn>;
+      ensureDir: ReturnType<typeof import('vitest').vi.fn>;
+      appendFile: ReturnType<typeof import('vitest').vi.fn>;
+      readFile: ReturnType<typeof import('vitest').vi.fn>;
+      writeFile: ReturnType<typeof import('vitest').vi.fn>;
+      remove: ReturnType<typeof import('vitest').vi.fn>;
+      readdir: ReturnType<typeof import('vitest').vi.fn>;
+      copy: ReturnType<typeof import('vitest').vi.fn>;
+    };
+    let serviceWithLogging: TaskService;
+    const workspaceDir = '/test/workspace';
+
+    beforeEach(async () => {
+      taskRepo = new MockTaskRepository();
+      stateRepo = new MockStateRepository();
+      logger = new MockLogger();
+
+      // Create mock file system
+      const { vi } = await import('vitest');
+      mockFileSystem = {
+        exists: vi.fn().mockResolvedValue(true),
+        ensureDir: vi.fn().mockResolvedValue(undefined),
+        appendFile: vi.fn().mockResolvedValue(undefined),
+        readFile: vi.fn().mockResolvedValue(''),
+        writeFile: vi.fn().mockResolvedValue(undefined),
+        remove: vi.fn().mockResolvedValue(undefined),
+        readdir: vi.fn().mockResolvedValue([]),
+        copy: vi.fn().mockResolvedValue(undefined),
+      };
+
+      serviceWithLogging = new TaskService(
+        taskRepo,
+        stateRepo,
+        logger,
+        mockFileSystem,
+        workspaceDir
+      );
+
+      // Seed a pending task for tests
+      await taskRepo.save(
+        new Task({
+          id: 'test.task',
+          module: 'test',
+          priority: 1,
+          status: 'pending',
+          estimatedMinutes: 30,
+          description: 'Test task',
+          acceptanceCriteria: [],
+          dependencies: [],
+          notes: '',
+        })
+      );
+    });
+
+    it('should log STARTED when starting a task', async () => {
+      // Act
+      await serviceWithLogging.startTask('test.task');
+
+      // Assert
+      expect(mockFileSystem.ensureDir).toHaveBeenCalledWith('/test/workspace/.ralph-dev');
+      expect(mockFileSystem.appendFile).toHaveBeenCalled();
+      const appendCall = mockFileSystem.appendFile.mock.calls[0];
+      expect(appendCall[0]).toBe('/test/workspace/.ralph-dev/progress.log');
+      expect(appendCall[1]).toContain('STARTED');
+      expect(appendCall[1]).toContain('test.task');
+    });
+
+    it('should log COMPLETED when completing a task', async () => {
+      // Arrange - start the task first
+      const task = await taskRepo.findById('test.task');
+      task!.start();
+      await taskRepo.save(task!);
+
+      // Act
+      await serviceWithLogging.completeTask('test.task', '5 minutes');
+
+      // Assert
+      expect(mockFileSystem.appendFile).toHaveBeenCalled();
+      const appendCall = mockFileSystem.appendFile.mock.calls[0];
+      expect(appendCall[0]).toBe('/test/workspace/.ralph-dev/progress.log');
+      expect(appendCall[1]).toContain('COMPLETED');
+      expect(appendCall[1]).toContain('test.task');
+      expect(appendCall[1]).toContain('5 minutes');
+    });
+
+    it('should log FAILED when failing a task', async () => {
+      // Arrange - start the task first
+      const task = await taskRepo.findById('test.task');
+      task!.start();
+      await taskRepo.save(task!);
+
+      // Act
+      await serviceWithLogging.failTask('test.task', 'Build error');
+
+      // Assert
+      expect(mockFileSystem.appendFile).toHaveBeenCalled();
+      const appendCall = mockFileSystem.appendFile.mock.calls[0];
+      expect(appendCall[0]).toBe('/test/workspace/.ralph-dev/progress.log');
+      expect(appendCall[1]).toContain('FAILED');
+      expect(appendCall[1]).toContain('test.task');
+      expect(appendCall[1]).toContain('Build error');
+    });
+
+    it('should not fail task operation if logging fails', async () => {
+      // Arrange - make appendFile throw an error
+      mockFileSystem.appendFile.mockRejectedValue(new Error('File system error'));
+
+      // Act
+      const result = await serviceWithLogging.startTask('test.task');
+
+      // Assert - task should still be started successfully
+      expect(result.status).toBe('in_progress');
+      expect(logger.warnCalls.some((l) => l.message.includes('Failed to write progress log'))).toBe(
+        true
+      );
+    });
+
+    it('should skip logging when fileSystem is not provided', async () => {
+      // Arrange - create service without file system
+      const serviceWithoutLogging = new TaskService(taskRepo, stateRepo, logger);
+
+      // Act
+      const result = await serviceWithoutLogging.startTask('test.task');
+
+      // Assert - task should be started and no file system calls made
+      expect(result.status).toBe('in_progress');
+      expect(mockFileSystem.appendFile).not.toHaveBeenCalled();
+    });
+  });
 });

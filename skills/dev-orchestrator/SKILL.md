@@ -69,8 +69,12 @@ if [[ "$MODE" == "resume" ]]; then
 elif [[ "$MODE" == "new" ]]; then
   # New session mode - archive existing if present, then start fresh
   if [[ "$HAS_EXISTING_PHASE" == "true" ]]; then
-    echo "📦 Found existing session, archiving..."
-    ARCHIVE_RESULT=$(ralph-dev state archive --json 2>&1)
+    CURRENT_PHASE=$(echo "$CURRENT_STATE" | jq -r '.phase')
+    echo "📦 Found existing session in phase: $CURRENT_PHASE"
+    echo "   Archiving with --force..."
+    # Use --force because we intentionally want to archive incomplete sessions
+    # when starting a new session (user explicitly requested new session)
+    ARCHIVE_RESULT=$(ralph-dev state archive --force --json 2>&1)
     if echo "$ARCHIVE_RESULT" | jq -e '.success == true' > /dev/null 2>&1; then
       ARCHIVE_PATH=$(echo "$ARCHIVE_RESULT" | jq -r '.data.archivePath // "unknown"')
       echo "✅ Previous session archived to: $ARCHIVE_PATH"

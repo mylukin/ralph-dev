@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { StateService, StateUpdate } from '../../src/services/state-service';
-import { State, Phase, StateConfig } from '../../src/domain/state-entity';
+import { State, StateConfig } from '../../src/domain/state-entity';
 import { IStateRepository } from '../../src/repositories/state-repository';
 import { ILogger } from '../../src/infrastructure/logger';
 import { MockFileSystem } from '../../src/test-utils/mock-file-system';
@@ -326,15 +326,15 @@ describe('StateService', () => {
       expect(result.files).toEqual([]);
     });
 
-    it('should archive state.json when it exists', async () => {
+    it('should archive state.json when it exists (with force)', async () => {
       // Arrange
       const state = State.createNew();
       stateRepo.setState(state);
       // Also create the file in mock file system
       mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
 
-      // Act
-      const result = await serviceWithFileSystem.archiveSession();
+      // Act - use force since clarify is incomplete
+      const result = await serviceWithFileSystem.archiveSession({ force: true });
 
       // Assert
       expect(result.archived).toBe(true);
@@ -379,8 +379,8 @@ describe('StateService', () => {
       stateRepo.setState(state);
       mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
 
-      // Act
-      const result = await serviceWithFileSystem.archiveSession();
+      // Act - use force since clarify is incomplete
+      const result = await serviceWithFileSystem.archiveSession({ force: true });
 
       // Assert
       expect(result.files).toContain('state.json');
@@ -399,8 +399,8 @@ describe('StateService', () => {
       mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/prd.md`, '# PRD');
       mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/tasks/index.json`, '{}');
 
-      // Act
-      const result = await serviceWithFileSystem.archiveSession();
+      // Act - use force since clarify is incomplete
+      const result = await serviceWithFileSystem.archiveSession({ force: true });
 
       // Assert
       expect(result.archived).toBe(true);
@@ -418,6 +418,10 @@ describe('StateService', () => {
     it('should clear state after archiving', async () => {
       // Arrange
       const state = State.createNew();
+      state.transitionTo('breakdown');
+      state.transitionTo('implement');
+      state.transitionTo('deliver');
+      state.transitionTo('complete'); // complete phase doesn't need --force
       stateRepo.setState(state);
       mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
 
@@ -431,6 +435,10 @@ describe('StateService', () => {
     it('should log archive operation', async () => {
       // Arrange
       const state = State.createNew();
+      state.transitionTo('breakdown');
+      state.transitionTo('implement');
+      state.transitionTo('deliver');
+      state.transitionTo('complete'); // must go through all phases
       stateRepo.setState(state);
       mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
 
@@ -440,6 +448,114 @@ describe('StateService', () => {
       // Assert
       expect(logger.logs.some((l) => l.level === 'info' && l.message.includes('Archiving'))).toBe(true);
       expect(logger.logs.some((l) => l.level === 'info' && l.message.includes('archived'))).toBe(true);
+    });
+
+    it('should block archiving incomplete sessions without --force', async () => {
+      // Arrange - session in implement phase (incomplete)
+      const state = State.createNew();
+      state.transitionTo('breakdown');
+      state.transitionTo('implement');
+      stateRepo.setState(state);
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+
+      // Act
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.archived).toBe(false);
+      expect(result.blocked).toBe(true);
+      expect(result.blockedReason).toContain('implement');
+      expect(result.blockedReason).toContain('--force');
+      expect(result.currentPhase).toBe('implement');
+      // State should NOT be cleared
+      expect(await stateRepo.exists()).toBe(true);
+    });
+
+    it('should allow archiving incomplete sessions with --force', async () => {
+      // Arrange - session in implement phase (incomplete)
+      const state = State.createNew();
+      state.transitionTo('breakdown');
+      state.transitionTo('implement');
+      stateRepo.setState(state);
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+
+      // Act - use force option
+      const result = await serviceWithFileSystem.archiveSession({ force: true });
+
+      // Assert
+      expect(result.archived).toBe(true);
+      expect(result.blocked).toBeUndefined();
+      expect(result.archivePath).toContain('.ralph-dev/archive/');
+      expect(result.files).toContain('state.json');
+      // State should be cleared
+      expect(await stateRepo.exists()).toBe(false);
+    });
+
+    it('should allow archiving complete sessions without --force', async () => {
+      // Arrange - session in complete phase
+      const state = State.createNew();
+      state.transitionTo('breakdown');
+      state.transitionTo('implement');
+      state.transitionTo('deliver');
+      state.transitionTo('complete');
+      stateRepo.setState(state);
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+
+      // Act - no force option
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.archived).toBe(true);
+      expect(result.blocked).toBeUndefined();
+    });
+
+    it('should block archiving clarify phase without --force', async () => {
+      // Arrange - fresh session in clarify phase
+      const state = State.createNew(); // starts in clarify
+      stateRepo.setState(state);
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+
+      // Act
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.archived).toBe(false);
+      expect(result.blocked).toBe(true);
+      expect(result.currentPhase).toBe('clarify');
+    });
+
+    it('should block archiving breakdown phase without --force', async () => {
+      // Arrange
+      const state = State.createNew();
+      state.transitionTo('breakdown');
+      stateRepo.setState(state);
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+
+      // Act
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.archived).toBe(false);
+      expect(result.blocked).toBe(true);
+      expect(result.currentPhase).toBe('breakdown');
+    });
+
+    it('should block archiving deliver phase without --force', async () => {
+      // Arrange
+      const state = State.createNew();
+      state.transitionTo('breakdown');
+      state.transitionTo('implement');
+      state.transitionTo('deliver');
+      stateRepo.setState(state);
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+
+      // Act
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.archived).toBe(false);
+      expect(result.blocked).toBe(true);
+      expect(result.currentPhase).toBe('deliver');
     });
   });
 });

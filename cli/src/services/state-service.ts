@@ -25,6 +25,13 @@ export interface ArchiveResult {
   archived: boolean;
   archivePath: string | null;
   files: string[];
+  blocked?: boolean;
+  blockedReason?: string;
+  currentPhase?: string;
+}
+
+export interface ArchiveOptions {
+  force?: boolean;
 }
 
 export interface IStateService {
@@ -62,8 +69,11 @@ export interface IStateService {
    * Archive current session to .ralph-dev/archive/TIMESTAMP/
    * Copies state.json, prd.md, tasks/, progress.log, debug.log
    * Then clears the state
+   *
+   * @param options.force - If true, archive even if session is not complete.
+   *                        By default, refuses to archive incomplete sessions.
    */
-  archiveSession(): Promise<ArchiveResult>;
+  archiveSession(options?: ArchiveOptions): Promise<ArchiveResult>;
 }
 
 /**
@@ -159,7 +169,7 @@ export class StateService implements IStateService {
     return await this.stateRepository.exists();
   }
 
-  async archiveSession(): Promise<ArchiveResult> {
+  async archiveSession(options: ArchiveOptions = {}): Promise<ArchiveResult> {
     if (!this.fileSystem || !this.workspaceDir) {
       throw new Error('FileSystem and workspaceDir are required for archiveSession');
     }
@@ -181,6 +191,28 @@ export class StateService implements IStateService {
         archivePath: null,
         files: [],
       };
+    }
+
+    // Safety check: refuse to archive incomplete sessions unless --force is used
+    if (hasState && !options.force) {
+      const currentState = await this.stateRepository.get();
+      if (currentState) {
+        const completablePhases = ['complete', 'none'];
+        if (!completablePhases.includes(currentState.phase)) {
+          this.logger.warn('Refusing to archive incomplete session', {
+            phase: currentState.phase,
+            hint: 'Use --force to archive anyway',
+          });
+          return {
+            archived: false,
+            archivePath: null,
+            files: [],
+            blocked: true,
+            blockedReason: `Session is in "${currentState.phase}" phase. Use --force to archive incomplete session.`,
+            currentPhase: currentState.phase,
+          };
+        }
+      }
     }
 
     // Create archive directory with timestamp

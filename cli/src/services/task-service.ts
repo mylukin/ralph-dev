@@ -5,10 +5,12 @@
  * Uses dependency injection for repositories and logger.
  */
 
+import * as path from 'path';
 import { Task } from '../domain/task-entity';
 import { ITaskRepository } from '../repositories/task-repository';
 import { IStateRepository } from '../repositories/state-repository';
 import { ILogger } from '../infrastructure/logger';
+import { IFileSystem } from '../infrastructure/file-system';
 
 export interface TaskFilter {
   status?: 'pending' | 'in_progress' | 'completed' | 'failed';
@@ -107,11 +109,45 @@ export interface ITaskService {
  * TaskService implementation
  */
 export class TaskService implements ITaskService {
+  private progressLogPath: string;
+
   constructor(
     private taskRepository: ITaskRepository,
     private stateRepository: IStateRepository,
-    private logger: ILogger
-  ) {}
+    private logger: ILogger,
+    private fileSystem?: IFileSystem,
+    private workspaceDir?: string
+  ) {
+    this.progressLogPath = workspaceDir
+      ? path.join(workspaceDir, '.ralph-dev', 'progress.log')
+      : '';
+  }
+
+  /**
+   * Write an entry to the progress log
+   */
+  private async logProgress(action: string, taskId: string, details?: string): Promise<void> {
+    if (!this.fileSystem || !this.progressLogPath) {
+      return; // Skip if file system not configured
+    }
+
+    try {
+      const timestamp = new Date().toISOString();
+      const logEntry = details
+        ? `[${timestamp}] ${action}: ${taskId} - ${details}\n`
+        : `[${timestamp}] ${action}: ${taskId}\n`;
+
+      // Ensure directory exists
+      const logDir = path.dirname(this.progressLogPath);
+      await this.fileSystem.ensureDir(logDir);
+
+      // Append to log file
+      await this.fileSystem.appendFile(this.progressLogPath, logEntry);
+    } catch (error) {
+      // Don't fail the operation if logging fails
+      this.logger.warn('Failed to write progress log', { error });
+    }
+  }
 
   async createTask(input: CreateTaskInput): Promise<Task> {
     this.logger.info(`Creating task: ${input.id}`);
@@ -277,6 +313,9 @@ export class TaskService implements ITaskService {
       await this.stateRepository.update({ currentTask: taskId });
     }
 
+    // Log to progress log
+    await this.logProgress('STARTED', taskId);
+
     this.logger.info(`Task started: ${taskId}`);
     return task;
   }
@@ -313,6 +352,9 @@ export class TaskService implements ITaskService {
       await this.stateRepository.update({ currentTask: undefined });
     }
 
+    // Log to progress log
+    await this.logProgress('COMPLETED', taskId, duration);
+
     this.logger.info(`Task completed: ${taskId}`);
     return task;
   }
@@ -340,6 +382,9 @@ export class TaskService implements ITaskService {
     if (state && state.currentTask === taskId) {
       await this.stateRepository.update({ currentTask: undefined });
     }
+
+    // Log to progress log
+    await this.logProgress('FAILED', taskId, reason);
 
     this.logger.error(`Task failed: ${taskId}`, { reason });
     return task;
