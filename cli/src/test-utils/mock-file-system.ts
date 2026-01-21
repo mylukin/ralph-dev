@@ -172,6 +172,53 @@ export class MockFileSystem implements IFileSystem {
     this.files.set(normalizedPath, existingStr + newStr);
   }
 
+  /**
+   * Copy file or directory in memory
+   */
+  async copy(src: string, dest: string): Promise<void> {
+    const normalizedSrc = this.normalizePath(src);
+    const normalizedDest = this.normalizePath(dest);
+
+    // If source is a file
+    if (this.files.has(normalizedSrc)) {
+      const content = this.files.get(normalizedSrc)!;
+      await this.ensureDir(path.dirname(normalizedDest));
+      this.files.set(normalizedDest, content);
+      return;
+    }
+
+    // If source is a directory
+    if (this.directories.has(normalizedSrc)) {
+      await this.ensureDir(normalizedDest);
+
+      // Copy all files in the directory
+      const srcPrefix = normalizedSrc === '/' ? '/' : normalizedSrc + '/';
+      for (const [filePath, content] of this.files.entries()) {
+        if (filePath.startsWith(srcPrefix)) {
+          const relativePath = filePath.substring(normalizedSrc.length);
+          const destPath = normalizedDest + relativePath;
+          await this.ensureDir(path.dirname(destPath));
+          this.files.set(destPath, content);
+        }
+      }
+
+      // Copy all subdirectories
+      for (const dir of this.directories.keys()) {
+        if (dir.startsWith(srcPrefix)) {
+          const relativePath = dir.substring(normalizedSrc.length);
+          const destDir = normalizedDest + relativePath;
+          this.directories.add(destDir);
+        }
+      }
+      return;
+    }
+
+    // Source doesn't exist
+    const error: any = new Error(`ENOENT: no such file or directory, copyfile '${src}'`);
+    error.code = 'ENOENT';
+    throw error;
+  }
+
   // Helper methods for testing
 
   /**

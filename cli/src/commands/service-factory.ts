@@ -45,7 +45,7 @@ export function createServices(workspaceDir: string): ServiceContainer {
 
   // Create services with dependency injection
   const taskService = new TaskService(taskRepository, stateRepository, logger);
-  const stateService = new StateService(stateRepository, logger);
+  const stateService = new StateService(stateRepository, logger, fileSystem, workspaceDir);
   const statusService = new StatusService(taskRepository, stateRepository, logger);
 
   // Detection service
@@ -100,7 +100,7 @@ export function createStateService(workspaceDir: string): IStateService {
   const fileSystem = new FileSystemService();
   const stateRepository = new FileSystemStateRepository(fileSystem, workspaceDir);
 
-  return new StateService(stateRepository, logger);
+  return new StateService(stateRepository, logger, fileSystem, workspaceDir);
 }
 
 /**

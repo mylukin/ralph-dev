@@ -366,4 +366,156 @@ describe('FileSystemService', () => {
       withRetrySpy.mockRestore();
     });
   });
+
+  describe('appendFile', () => {
+    it('should append string data to existing file', async () => {
+      // Arrange
+      const testPath = path.join(testDir, 'append-string.txt');
+      fs.writeFileSync(testPath, 'initial content');
+      const appendData = ' appended data';
+
+      // Act
+      await fileSystemService.appendFile(testPath, appendData);
+
+      // Assert
+      const content = fs.readFileSync(testPath, 'utf-8');
+      expect(content).toBe('initial content appended data');
+    });
+
+    it('should append buffer data to existing file', async () => {
+      // Arrange
+      const testPath = path.join(testDir, 'append-buffer.txt');
+      fs.writeFileSync(testPath, 'Hello');
+      const appendData = Buffer.from(' World');
+
+      // Act
+      await fileSystemService.appendFile(testPath, appendData);
+
+      // Assert
+      const content = fs.readFileSync(testPath, 'utf-8');
+      expect(content).toBe('Hello World');
+    });
+
+    it('should create file if it does not exist', async () => {
+      // Arrange
+      const testPath = path.join(testDir, 'new-append.txt');
+      const appendData = 'new content';
+
+      // Act
+      await fileSystemService.appendFile(testPath, appendData);
+
+      // Assert
+      const content = fs.readFileSync(testPath, 'utf-8');
+      expect(content).toBe('new content');
+    });
+
+    it('should use withRetry for retryable errors', async () => {
+      // Arrange
+      const testPath = path.join(testDir, 'retry-append.txt');
+      fs.writeFileSync(testPath, 'content');
+      const withRetrySpy = vi.spyOn(retry, 'withRetry');
+
+      // Act
+      await fileSystemService.appendFile(testPath, ' more');
+
+      // Assert
+      expect(withRetrySpy).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          retryableErrors: ['EBUSY', 'ENOENT', 'EAGAIN', 'ETIMEDOUT'],
+        })
+      );
+
+      withRetrySpy.mockRestore();
+    });
+  });
+
+  describe('copy', () => {
+    it('should copy file to destination', async () => {
+      // Arrange
+      const srcPath = path.join(testDir, 'copy-src.txt');
+      const destPath = path.join(testDir, 'copy-dest.txt');
+      const testContent = 'test content to copy';
+      fs.writeFileSync(srcPath, testContent);
+
+      // Act
+      await fileSystemService.copy(srcPath, destPath);
+
+      // Assert
+      expect(fs.existsSync(destPath)).toBe(true);
+      const content = fs.readFileSync(destPath, 'utf-8');
+      expect(content).toBe(testContent);
+      // Source should still exist
+      expect(fs.existsSync(srcPath)).toBe(true);
+    });
+
+    it('should copy directory recursively', async () => {
+      // Arrange
+      const srcDir = path.join(testDir, 'copy-src-dir');
+      const destDir = path.join(testDir, 'copy-dest-dir');
+      fs.ensureDirSync(srcDir);
+      fs.writeFileSync(path.join(srcDir, 'file1.txt'), 'content1');
+      fs.ensureDirSync(path.join(srcDir, 'subdir'));
+      fs.writeFileSync(path.join(srcDir, 'subdir', 'file2.txt'), 'content2');
+
+      // Act
+      await fileSystemService.copy(srcDir, destDir);
+
+      // Assert
+      expect(fs.existsSync(destDir)).toBe(true);
+      expect(fs.existsSync(path.join(destDir, 'file1.txt'))).toBe(true);
+      expect(fs.existsSync(path.join(destDir, 'subdir', 'file2.txt'))).toBe(true);
+      expect(fs.readFileSync(path.join(destDir, 'file1.txt'), 'utf-8')).toBe('content1');
+      expect(fs.readFileSync(path.join(destDir, 'subdir', 'file2.txt'), 'utf-8')).toBe('content2');
+    });
+
+    it('should overwrite existing destination file', async () => {
+      // Arrange
+      const srcPath = path.join(testDir, 'copy-overwrite-src.txt');
+      const destPath = path.join(testDir, 'copy-overwrite-dest.txt');
+      fs.writeFileSync(srcPath, 'new content');
+      fs.writeFileSync(destPath, 'old content');
+
+      // Act
+      await fileSystemService.copy(srcPath, destPath);
+
+      // Assert
+      const content = fs.readFileSync(destPath, 'utf-8');
+      expect(content).toBe('new content');
+    });
+
+    it('should create destination directory if it does not exist', async () => {
+      // Arrange
+      const srcPath = path.join(testDir, 'copy-create-dir-src.txt');
+      const destPath = path.join(testDir, 'new-dir', 'copy-create-dir-dest.txt');
+      fs.writeFileSync(srcPath, 'content');
+
+      // Act
+      await fileSystemService.copy(srcPath, destPath);
+
+      // Assert
+      expect(fs.existsSync(destPath)).toBe(true);
+    });
+
+    it('should use withRetry for retryable errors', async () => {
+      // Arrange
+      const srcPath = path.join(testDir, 'retry-copy-src.txt');
+      const destPath = path.join(testDir, 'retry-copy-dest.txt');
+      fs.writeFileSync(srcPath, 'content');
+      const withRetrySpy = vi.spyOn(retry, 'withRetry');
+
+      // Act
+      await fileSystemService.copy(srcPath, destPath);
+
+      // Assert
+      expect(withRetrySpy).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          retryableErrors: ['EBUSY', 'ENOENT', 'EAGAIN', 'ETIMEDOUT'],
+        })
+      );
+
+      withRetrySpy.mockRestore();
+    });
+  });
 });

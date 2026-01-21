@@ -116,4 +116,18 @@ export class FileSystemService implements IFileSystem {
       }
     );
   }
+
+  /**
+   * Copy file or directory with retry logic
+   * @param src - Source path
+   * @param dest - Destination path
+   */
+  async copy(src: string, dest: string): Promise<void> {
+    return withRetry(
+      () => fs.copy(src, dest),
+      {
+        retryableErrors: ['EBUSY', 'ENOENT', 'EAGAIN', 'ETIMEDOUT'],
+      }
+    );
+  }
 }

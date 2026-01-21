@@ -219,4 +219,32 @@ export function registerStateCommands(program: Command, workspaceDir: string): v
         handleError(Errors.fileSystemError('Failed to clear state', error), options.json);
       }
     });
+
+  // Archive session
+  state
+    .command('archive')
+    .description('Archive current session to .ralph-dev/archive/ and clear state')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const stateService = createStateService(workspaceDir);
+        const result = await stateService.archiveSession();
+
+        const response = successResponse(result);
+
+        outputResponse(response, options.json, (data) => {
+          if (data.archived) {
+            console.log(chalk.green('✓ Session archived'));
+            console.log(chalk.gray(`  Location: ${data.archivePath}`));
+            console.log(chalk.gray(`  Files: ${data.files.join(', ')}`));
+          } else {
+            console.log(chalk.yellow('No session data to archive'));
+          }
+        });
+
+        process.exit(ExitCode.SUCCESS);
+      } catch (error) {
+        handleError(Errors.fileSystemError('Failed to archive session', error), options.json);
+      }
+    });
 }

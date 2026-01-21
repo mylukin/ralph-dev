@@ -72,4 +72,11 @@ export interface IFileSystem {
    * @param options - Write options (encoding)
    */
   appendFile(path: string, data: string | Buffer, options?: WriteFileOptions): Promise<void>;
+
+  /**
+   * Copy file or directory
+   * @param src - Source path
+   * @param dest - Destination path
+   */
+  copy(src: string, dest: string): Promise<void>;
 }

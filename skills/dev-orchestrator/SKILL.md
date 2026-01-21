@@ -39,17 +39,44 @@ All state persists in `.ralph-dev/`:
 # Change to project root
 cd $PROJECT_ROOT
 
+# Parse mode from arguments
+# $1 = user requirement or mode flag
+MODE="new"
+if [[ "$1" == "--mode=resume" ]] || [[ "$1" == "resume" ]]; then
+  MODE="resume"
+elif [[ "$1" == "--mode=status" ]] || [[ "$1" == "status" ]]; then
+  MODE="status"
+elif [[ "$1" == "--mode=cancel" ]] || [[ "$1" == "cancel" ]]; then
+  MODE="cancel"
+fi
+
 # Detect project language and save configuration
 ralph-dev detect --save
 
-# Check if resuming existing session or starting new
+# Check existing session state
 CURRENT_STATE=$(ralph-dev state get --json 2>/dev/null)
+HAS_EXISTING_PHASE=$(echo "$CURRENT_STATE" | jq -e '.phase' > /dev/null 2>&1 && echo "true" || echo "false")
 
-if echo "$CURRENT_STATE" | jq -e '.phase' > /dev/null 2>&1; then
-  CURRENT_PHASE=$(echo "$CURRENT_STATE" | jq -r '.phase')
-  echo "🔄 Resuming from phase: $CURRENT_PHASE"
-else
-  # New session - initialize to clarify phase
+if [[ "$MODE" == "resume" ]]; then
+  # Resume mode - continue existing session
+  if [[ "$HAS_EXISTING_PHASE" == "true" ]]; then
+    CURRENT_PHASE=$(echo "$CURRENT_STATE" | jq -r '.phase')
+    echo "🔄 Resuming from phase: $CURRENT_PHASE"
+  else
+    echo "❌ ERROR: No existing session to resume"
+    exit 1
+  fi
+elif [[ "$MODE" == "new" ]]; then
+  # New session mode - archive existing if present, then start fresh
+  if [[ "$HAS_EXISTING_PHASE" == "true" ]]; then
+    echo "📦 Found existing session, archiving..."
+    ARCHIVE_RESULT=$(ralph-dev state archive --json 2>&1)
+    if echo "$ARCHIVE_RESULT" | jq -e '.success == true' > /dev/null 2>&1; then
+      ARCHIVE_PATH=$(echo "$ARCHIVE_RESULT" | jq -r '.data.archivePath // "unknown"')
+      echo "✅ Previous session archived to: $ARCHIVE_PATH"
+    fi
+  fi
+  # Initialize new session
   ralph-dev state set --phase clarify
   CURRENT_PHASE="clarify"
   echo "🚀 Starting new Ralph-dev session"

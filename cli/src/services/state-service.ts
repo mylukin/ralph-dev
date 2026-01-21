@@ -5,9 +5,11 @@
  * Uses dependency injection for repository and logger.
  */
 
+import * as path from 'path';
 import { State, Phase, StateConfig } from '../domain/state-entity';
 import { IStateRepository } from '../repositories/state-repository';
 import { ILogger } from '../infrastructure/logger';
+import { IFileSystem } from '../infrastructure/file-system';
 
 export interface StateUpdate {
   phase?: Phase;
@@ -19,6 +21,12 @@ export interface StateUpdate {
 /**
  * IStateService interface for dependency injection
  */
+export interface ArchiveResult {
+  archived: boolean;
+  archivePath: string | null;
+  files: string[];
+}
+
 export interface IStateService {
   /**
    * Get current workflow state
@@ -49,6 +57,13 @@ export interface IStateService {
    * Check if state exists
    */
   exists(): Promise<boolean>;
+
+  /**
+   * Archive current session to .ralph-dev/archive/TIMESTAMP/
+   * Copies state.json, prd.md, tasks/, progress.log, debug.log
+   * Then clears the state
+   */
+  archiveSession(): Promise<ArchiveResult>;
 }
 
 /**
@@ -57,7 +72,9 @@ export interface IStateService {
 export class StateService implements IStateService {
   constructor(
     private stateRepository: IStateRepository,
-    private logger: ILogger
+    private logger: ILogger,
+    private fileSystem?: IFileSystem,
+    private workspaceDir?: string
   ) {}
 
   async getState(): Promise<State | null> {
@@ -140,5 +157,89 @@ export class StateService implements IStateService {
 
   async exists(): Promise<boolean> {
     return await this.stateRepository.exists();
+  }
+
+  async archiveSession(): Promise<ArchiveResult> {
+    if (!this.fileSystem || !this.workspaceDir) {
+      throw new Error('FileSystem and workspaceDir are required for archiveSession');
+    }
+
+    this.logger.info('Archiving session');
+
+    const ralphDevDir = path.join(this.workspaceDir, '.ralph-dev');
+    const archivedFiles: string[] = [];
+
+    // Check if there's anything to archive
+    const hasState = await this.stateRepository.exists();
+    const hasPrd = await this.fileSystem.exists(path.join(ralphDevDir, 'prd.md'));
+    const hasTasksDir = await this.fileSystem.exists(path.join(ralphDevDir, 'tasks'));
+
+    if (!hasState && !hasPrd && !hasTasksDir) {
+      this.logger.info('No session data to archive');
+      return {
+        archived: false,
+        archivePath: null,
+        files: [],
+      };
+    }
+
+    // Create archive directory with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const archiveDir = path.join(ralphDevDir, 'archive', timestamp);
+    await this.fileSystem.ensureDir(archiveDir);
+
+    // Files to archive
+    const filesToArchive = [
+      { src: 'state.json', name: 'state.json' },
+      { src: 'prd.md', name: 'prd.md' },
+      { src: 'tasks', name: 'tasks' },
+      { src: 'progress.log', name: 'progress.log' },
+      { src: 'debug.log', name: 'debug.log' },
+    ];
+
+    // Copy each file/directory if it exists
+    for (const file of filesToArchive) {
+      const srcPath = path.join(ralphDevDir, file.src);
+      const destPath = path.join(archiveDir, file.name);
+
+      if (await this.fileSystem.exists(srcPath)) {
+        await this.fileSystem.copy(srcPath, destPath);
+        archivedFiles.push(file.name);
+        this.logger.debug(`Archived: ${file.name}`);
+      }
+    }
+
+    // Clear state after archiving
+    if (hasState) {
+      await this.stateRepository.clear();
+    }
+
+    // Remove prd.md after archiving
+    if (hasPrd) {
+      await this.fileSystem.remove(path.join(ralphDevDir, 'prd.md'));
+    }
+
+    // Remove tasks directory after archiving
+    if (hasTasksDir) {
+      await this.fileSystem.remove(path.join(ralphDevDir, 'tasks'));
+    }
+
+    // Remove progress.log and debug.log if they exist
+    const progressLog = path.join(ralphDevDir, 'progress.log');
+    const debugLog = path.join(ralphDevDir, 'debug.log');
+    if (await this.fileSystem.exists(progressLog)) {
+      await this.fileSystem.remove(progressLog);
+    }
+    if (await this.fileSystem.exists(debugLog)) {
+      await this.fileSystem.remove(debugLog);
+    }
+
+    this.logger.info('Session archived', { archiveDir, files: archivedFiles });
+
+    return {
+      archived: true,
+      archivePath: archiveDir,
+      files: archivedFiles,
+    };
   }
 }

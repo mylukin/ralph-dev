@@ -3,6 +3,7 @@ import { StateService, StateUpdate } from '../../src/services/state-service';
 import { State, Phase, StateConfig } from '../../src/domain/state-entity';
 import { IStateRepository } from '../../src/repositories/state-repository';
 import { ILogger } from '../../src/infrastructure/logger';
+import { MockFileSystem } from '../../src/test-utils/mock-file-system';
 
 /**
  * Mock StateRepository for testing
@@ -293,6 +294,152 @@ describe('StateService', () => {
 
       // Assert
       expect(result).toBe(true);
+    });
+  });
+
+  describe('archiveSession', () => {
+    let mockFileSystem: MockFileSystem;
+    let serviceWithFileSystem: StateService;
+    const workspaceDir = '/test/workspace';
+
+    beforeEach(() => {
+      mockFileSystem = new MockFileSystem();
+      stateRepo = new MockStateRepository();
+      logger = new MockLogger();
+      serviceWithFileSystem = new StateService(stateRepo, logger, mockFileSystem, workspaceDir);
+    });
+
+    it('should throw error when fileSystem is not provided', async () => {
+      // Act & Assert
+      await expect(service.archiveSession()).rejects.toThrow(
+        'FileSystem and workspaceDir are required for archiveSession'
+      );
+    });
+
+    it('should return archived: false when no session data exists', async () => {
+      // Act
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.archived).toBe(false);
+      expect(result.archivePath).toBeNull();
+      expect(result.files).toEqual([]);
+    });
+
+    it('should archive state.json when it exists', async () => {
+      // Arrange
+      const state = State.createNew();
+      stateRepo.setState(state);
+      // Also create the file in mock file system
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+
+      // Act
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.archived).toBe(true);
+      expect(result.archivePath).toContain('.ralph-dev/archive/');
+      expect(result.files).toContain('state.json');
+    });
+
+    it('should archive prd.md when it exists', async () => {
+      // Arrange
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/prd.md`, '# Test PRD');
+
+      // Act
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.archived).toBe(true);
+      expect(result.files).toContain('prd.md');
+      // Verify original file is removed
+      expect(await mockFileSystem.exists(`${workspaceDir}/.ralph-dev/prd.md`)).toBe(false);
+    });
+
+    it('should archive tasks directory when it exists', async () => {
+      // Arrange
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/tasks/index.json`, '{}');
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/tasks/auth/login.md`, '# Task');
+
+      // Act
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.archived).toBe(true);
+      expect(result.files).toContain('tasks');
+      // Verify original directory is removed
+      expect(await mockFileSystem.exists(`${workspaceDir}/.ralph-dev/tasks`)).toBe(false);
+    });
+
+    it('should archive progress.log and debug.log when they exist', async () => {
+      // Arrange
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/progress.log`, 'log content');
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/debug.log`, 'debug content');
+      const state = State.createNew();
+      stateRepo.setState(state);
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+
+      // Act
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.files).toContain('state.json');
+      expect(result.files).toContain('progress.log');
+      expect(result.files).toContain('debug.log');
+      // Verify originals are removed
+      expect(await mockFileSystem.exists(`${workspaceDir}/.ralph-dev/progress.log`)).toBe(false);
+      expect(await mockFileSystem.exists(`${workspaceDir}/.ralph-dev/debug.log`)).toBe(false);
+    });
+
+    it('should archive all session files to timestamped directory', async () => {
+      // Arrange
+      const state = State.createNew();
+      stateRepo.setState(state);
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/prd.md`, '# PRD');
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/tasks/index.json`, '{}');
+
+      // Act
+      const result = await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(result.archived).toBe(true);
+      expect(result.archivePath).toMatch(/\.ralph-dev\/archive\/\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}/);
+      expect(result.files).toContain('state.json');
+      expect(result.files).toContain('prd.md');
+      expect(result.files).toContain('tasks');
+
+      // Verify files are copied to archive
+      expect(await mockFileSystem.exists(`${result.archivePath}/state.json`)).toBe(true);
+      expect(await mockFileSystem.exists(`${result.archivePath}/prd.md`)).toBe(true);
+      expect(await mockFileSystem.exists(`${result.archivePath}/tasks/index.json`)).toBe(true);
+    });
+
+    it('should clear state after archiving', async () => {
+      // Arrange
+      const state = State.createNew();
+      stateRepo.setState(state);
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+
+      // Act
+      await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(await stateRepo.exists()).toBe(false);
+    });
+
+    it('should log archive operation', async () => {
+      // Arrange
+      const state = State.createNew();
+      stateRepo.setState(state);
+      mockFileSystem.setFile(`${workspaceDir}/.ralph-dev/state.json`, JSON.stringify(state.toJSON()));
+
+      // Act
+      await serviceWithFileSystem.archiveSession();
+
+      // Assert
+      expect(logger.logs.some((l) => l.level === 'info' && l.message.includes('Archiving'))).toBe(true);
+      expect(logger.logs.some((l) => l.level === 'info' && l.message.includes('archived'))).toBe(true);
     });
   });
 });
