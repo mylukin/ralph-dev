@@ -61,6 +61,8 @@ export function registerDetectAICommand(program: Command, workspaceDir: string):
       console.log(chalk.bold('\n💡 Tip:'));
       console.log('For manual detection (template-based), use:');
       console.log(chalk.cyan('   ralph-dev detect'));
+
+      process.exit(0);
     });
 
   // Helper command to save AI detection result
@@ -104,6 +106,8 @@ export function registerDetectAICommand(program: Command, workspaceDir: string):
             console.log(`  • ${ev}`);
           });
         }
+
+        process.exit(0);
       } catch (error) {
         console.error(chalk.red('❌ Failed to parse detection result'));
         console.error(chalk.gray('Expected JSON string with language configuration'));

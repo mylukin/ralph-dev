@@ -304,6 +304,8 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
             console.log(task.notes);
           }
         }
+
+        process.exit(ExitCode.SUCCESS);
       } catch (error) {
         handleError(error as any, options.json);
       }

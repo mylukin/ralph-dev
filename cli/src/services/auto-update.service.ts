@@ -133,9 +133,12 @@ export class AutoUpdateService {
       }
 
       // Wait for background check (with timeout)
+      // Use .unref() to prevent timers from blocking process exit
       const timeout = setTimeout(() => {
+        clearInterval(interval);
         resolve(notifier.update);
       }, 5000);
+      timeout.unref();
 
       // Check periodically for update info
       const interval = setInterval(() => {
@@ -145,6 +148,7 @@ export class AutoUpdateService {
           resolve(notifier.update);
         }
       }, 100);
+      interval.unref();
     });
   }
 
