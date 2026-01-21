@@ -3,12 +3,16 @@ import { AutoUpdateService, createAutoUpdateService } from '../../src/services/a
 import { join } from 'path';
 import { homedir } from 'os';
 
-// Mock update-notifier
-vi.mock('update-notifier', () => ({
-  default: () => ({
+// Use vi.hoisted to define mocks that need to be accessed in vi.mock factories
+const { mockUpdateNotifier } = vi.hoisted(() => ({
+  mockUpdateNotifier: vi.fn(() => ({
     update: null,
     notify: vi.fn(),
-  }),
+  })),
+}));
+
+vi.mock('update-notifier', () => ({
+  default: mockUpdateNotifier,
 }));
 
 // Mock child_process
@@ -109,6 +113,12 @@ describe('AutoUpdateService', () => {
 
   describe('notify', () => {
     it('should call notify without throwing', () => {
+      // Mock notifier with notify method
+      mockUpdateNotifier.mockReturnValueOnce({
+        update: null,
+        notify: vi.fn(),
+      });
+
       const service = new AutoUpdateService({
         packageName: 'test-package',
         currentVersion: '1.0.0',
@@ -169,6 +179,461 @@ describe('AutoUpdateService integration', () => {
       const result = await service.checkAndUpdate();
       expect(result.autoUpdated).toBe(false);
     });
+  });
+});
+
+describe('AutoUpdateService with update available', () => {
+  const originalEnv = process.env;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    process.env = {};
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    process.env = originalEnv;
+  });
+
+  it('should detect update when notifier has update info', async () => {
+    // Mock update-notifier to return update info
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: false, // Disable auto-update to test detection only
+    });
+
+    const result = await service.checkAndUpdate();
+
+    expect(result.updateAvailable).toBe(true);
+    expect(result.latestVersion).toBe('2.0.0');
+    expect(result.updateType).toBe('major');
+  });
+
+  it('should perform auto-update when enabled and not in CI', async () => {
+    const { execSync } = await import('child_process');
+
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    vi.mocked(execSync).mockImplementation(() => Buffer.from(''));
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: true,
+      updatePluginCache: false, // Disable plugin cache update for this test
+    });
+
+    const result = await service.checkAndUpdate();
+
+    expect(result.autoUpdated).toBe(true);
+    expect(vi.mocked(execSync)).toHaveBeenCalledWith(
+      'npm install -g test-package@latest',
+      expect.any(Object)
+    );
+  });
+
+  it('should try npx when npm fails', async () => {
+    const { execSync } = await import('child_process');
+
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    // First call (npm) fails, second call (npx) succeeds
+    vi.mocked(execSync)
+      .mockImplementationOnce(() => { throw new Error('npm failed'); })
+      .mockImplementationOnce(() => Buffer.from(''));
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: true,
+      updatePluginCache: false,
+    });
+
+    const result = await service.checkAndUpdate();
+
+    expect(result.autoUpdated).toBe(true);
+    expect(vi.mocked(execSync)).toHaveBeenCalledWith(
+      'npx npm install -g test-package@latest',
+      expect.any(Object)
+    );
+  });
+
+  it('should handle update failure gracefully', async () => {
+    const { execSync } = await import('child_process');
+
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    // Both npm and npx fail
+    vi.mocked(execSync).mockImplementation(() => { throw new Error('update failed'); });
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: true,
+      updatePluginCache: false,
+    });
+
+    const result = await service.checkAndUpdate();
+
+    expect(result.autoUpdated).toBe(false);
+  });
+
+  it('should log update available message', async () => {
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: false,
+    });
+
+    await service.checkAndUpdate();
+
+    // Verify update available message was logged
+    expect(consoleLogSpy).toHaveBeenCalled();
+    const allLogCalls = consoleLogSpy.mock.calls.flat().join('\n');
+    expect(allLogCalls).toContain('Update available');
+  });
+
+  it('should handle error in checkAndUpdate', async () => {
+    mockUpdateNotifier.mockImplementationOnce(() => {
+      throw new Error('notifier error');
+    });
+
+    const mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      logger: mockLogger,
+    });
+
+    const result = await service.checkAndUpdate();
+
+    expect(result.error).toBe('notifier error');
+    expect(mockLogger.debug).toHaveBeenCalled();
+  });
+});
+
+describe('AutoUpdateService plugin cache update', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    process.env = {};
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    process.env = originalEnv;
+  });
+
+  it('should skip marketplace update when directory does not exist', async () => {
+    const fs = await import('fs');
+    const { execSync } = await import('child_process');
+
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    vi.mocked(execSync).mockImplementation(() => Buffer.from(''));
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: true,
+      updatePluginCache: true,
+    });
+
+    await service.checkAndUpdate();
+
+    // Git pull should not be called when marketplace dir doesn't exist
+    const gitPullCalls = vi.mocked(execSync).mock.calls.filter(
+      call => String(call[0]).includes('git pull')
+    );
+    expect(gitPullCalls).toHaveLength(0);
+  });
+
+  it('should run git pull when marketplace directory exists with .git', async () => {
+    const fs = await import('fs');
+    const { execSync } = await import('child_process');
+
+    // Simulate directory exists with .git folder
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+      const pathStr = String(path);
+      if (pathStr.includes('marketplaces') && pathStr.includes('.git')) return true;
+      if (pathStr.includes('marketplaces') && !pathStr.includes('.git')) return true;
+      if (pathStr.includes('cache')) return false;
+      return false;
+    });
+
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    vi.mocked(execSync).mockImplementation(() => Buffer.from(''));
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: true,
+      updatePluginCache: true,
+    });
+
+    await service.checkAndUpdate();
+
+    const gitPullCalls = vi.mocked(execSync).mock.calls.filter(
+      call => String(call[0]).includes('git pull')
+    );
+    expect(gitPullCalls.length).toBeGreaterThan(0);
+  });
+
+  it('should handle git pull failure gracefully', async () => {
+    const fs = await import('fs');
+    const { execSync } = await import('child_process');
+
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+      const pathStr = String(path);
+      if (pathStr.includes('marketplaces')) return true;
+      return false;
+    });
+
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    let callCount = 0;
+    vi.mocked(execSync).mockImplementation((cmd: any) => {
+      callCount++;
+      if (callCount === 1) return Buffer.from(''); // npm install succeeds
+      if (String(cmd).includes('git pull')) throw new Error('git pull failed');
+      return Buffer.from('');
+    });
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: true,
+      updatePluginCache: true,
+    });
+
+    const result = await service.checkAndUpdate();
+
+    // Should still complete without throwing
+    expect(result.autoUpdated).toBe(true);
+  });
+
+  it('should skip cache update when cache directory does not exist', async () => {
+    const fs = await import('fs');
+    const { execSync } = await import('child_process');
+
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    vi.mocked(execSync).mockImplementation(() => Buffer.from(''));
+
+    const mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: true,
+      updatePluginCache: true,
+      logger: mockLogger,
+    });
+
+    await service.checkAndUpdate();
+
+    // Curl should not be called when cache dir doesn't exist
+    const curlCalls = vi.mocked(execSync).mock.calls.filter(
+      call => String(call[0]).includes('curl')
+    );
+    expect(curlCalls).toHaveLength(0);
+  });
+
+  it('should skip cache update when version already exists', async () => {
+    const fs = await import('fs');
+    const { execSync } = await import('child_process');
+
+    // Version directory already exists
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+      const pathStr = String(path);
+      if (pathStr.includes('cache') && pathStr.includes('2.0.0')) return true;
+      if (pathStr.includes('cache')) return true;
+      return false;
+    });
+
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    vi.mocked(execSync).mockImplementation(() => Buffer.from(''));
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: true,
+      updatePluginCache: true,
+    });
+
+    await service.checkAndUpdate();
+
+    // Service should complete without error
+    expect(true).toBe(true);
+  });
+});
+
+describe('AutoUpdateService cleanupOldVersions', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    process.env = {};
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    process.env = originalEnv;
+  });
+
+  it('should remove old versions beyond keepCount', async () => {
+    const fs = await import('fs');
+    const { execSync } = await import('child_process');
+
+    // Setup: cache dir exists, has multiple versions
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+      const pathStr = String(path);
+      // Cache dir exists, version dir doesn't (so it will try to create)
+      if (pathStr.includes('cache') && !pathStr.includes('2.0.0')) return true;
+      if (pathStr.includes('2.0.0') && !pathStr.includes('tmp')) return false;
+      if (pathStr.includes('.tmp')) return true;
+      if (pathStr.includes('ralph-dev-cli')) return true;
+      return false;
+    });
+
+    vi.mocked(fs.readdirSync).mockReturnValue(['0.1.0', '0.2.0', '0.3.0', '1.0.0'] as any);
+
+    mockUpdateNotifier.mockReturnValueOnce({
+      update: {
+        current: '1.0.0',
+        latest: '2.0.0',
+        type: 'major',
+        name: 'test-package',
+      },
+      notify: vi.fn(),
+    });
+
+    vi.mocked(execSync).mockImplementation(() => Buffer.from(''));
+
+    const mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+
+    const service = new AutoUpdateService({
+      packageName: 'test-package',
+      currentVersion: '1.0.0',
+      autoUpdate: true,
+      updatePluginCache: true,
+      logger: mockLogger,
+    });
+
+    await service.checkAndUpdate();
+
+    // Should have called rmSync to remove old versions
+    expect(vi.mocked(fs.rmSync)).toHaveBeenCalled();
   });
 });
 

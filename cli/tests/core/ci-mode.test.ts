@@ -420,4 +420,430 @@ describe('printCIReport', () => {
     // Should not throw
     expect(() => printCIReport(report)).not.toThrow();
   });
+
+  it('should print failure report', () => {
+    const report = {
+      success: false,
+      duration: 120,
+      resourcesUsed: {
+        tasksCreated: 10,
+        healingAttempts: 15,
+      },
+      notificationsSent: 5,
+      config: {
+        autoApprove: false,
+        limits: undefined,
+      },
+    };
+
+    expect(() => printCIReport(report)).not.toThrow();
+  });
+});
+
+describe('CIModeManager - Notifications', () => {
+  const testDir = path.join(__dirname, '../../test-fixtures/ci-notifications');
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fs.ensureDirSync(testDir);
+    fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+    } as Response);
+  });
+
+  afterEach(() => {
+    fs.removeSync(testDir);
+    vi.restoreAllMocks();
+  });
+
+  it('should send slack notification on success event', async () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        slack_webhook: 'https://hooks.slack.com/test',
+        on_success: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('success', { task: 'test-task' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://hooks.slack.com/test',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+  });
+
+  it('should send slack notification on failure event', async () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        slack_webhook: 'https://hooks.slack.com/test',
+        on_failure: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('failure', { error: 'test-error' });
+
+    expect(fetchSpy).toHaveBeenCalled();
+    const callBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(callBody.attachments[0].color).toBe('danger');
+  });
+
+  it('should send slack notification on healing event', async () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        slack_webhook: 'https://hooks.slack.com/test',
+        on_healing: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('healing', { attempt: 1 });
+
+    expect(fetchSpy).toHaveBeenCalled();
+    const callBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(callBody.attachments[0].color).toBe('warning');
+  });
+
+  it('should send webhook notification', async () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        webhook_url: 'https://example.com/webhook',
+        on_success: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('success', { result: 'ok' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://example.com/webhook',
+      expect.objectContaining({
+        method: 'POST',
+      })
+    );
+    const callBody = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
+    expect(callBody.event).toBe('success');
+    expect(callBody.data.result).toBe('ok');
+  });
+
+  it('should send both slack and webhook notifications', async () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        slack_webhook: 'https://hooks.slack.com/test',
+        webhook_url: 'https://example.com/webhook',
+        on_success: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('success', { task: 'done' });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('should skip notification when event type not enabled', async () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        slack_webhook: 'https://hooks.slack.com/test',
+        on_success: false,
+        on_failure: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('success', { task: 'done' });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('should skip notification when no notifications configured', async () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('success', { task: 'done' });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('should handle slack notification failure gracefully', async () => {
+    fetchSpy.mockResolvedValue({ ok: false } as Response);
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        slack_webhook: 'https://hooks.slack.com/test',
+        on_success: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('success', { task: 'done' });
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to send Slack notification')
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('should handle slack fetch error gracefully', async () => {
+    fetchSpy.mockRejectedValue(new Error('Network error'));
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        slack_webhook: 'https://hooks.slack.com/test',
+        on_success: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('success', { task: 'done' });
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Slack notification error'),
+      expect.any(Error)
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('should handle webhook notification failure gracefully', async () => {
+    fetchSpy.mockResolvedValue({ ok: false } as Response);
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        webhook_url: 'https://example.com/webhook',
+        on_success: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('success', { task: 'done' });
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to send webhook notification')
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('should handle webhook fetch error gracefully', async () => {
+    fetchSpy.mockRejectedValue(new Error('Connection refused'));
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        webhook_url: 'https://example.com/webhook',
+        on_success: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('success', { task: 'done' });
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Webhook notification error'),
+      expect.any(Error)
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('should increment notificationsSent counter', async () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      notifications: {
+        slack_webhook: 'https://hooks.slack.com/test',
+        on_success: true,
+        on_failure: true,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    await manager.sendNotification('success', { task: '1' });
+    await manager.sendNotification('failure', { error: '2' });
+
+    const report = manager.getFinalReport();
+    expect(report.notificationsSent).toBe(2);
+  });
+});
+
+describe('CIModeManager - Edge Cases', () => {
+  const testDir = path.join(__dirname, '../../test-fixtures/ci-edge-cases');
+
+  beforeEach(() => {
+    fs.ensureDirSync(testDir);
+  });
+
+  afterEach(() => {
+    fs.removeSync(testDir);
+  });
+
+  it('should use default timeout for invalid format', () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      limits: {
+        max_total_time: 'invalid',
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    const timeout = manager.checkTimeout();
+
+    // Default is 2 hours = 7200 seconds
+    expect(timeout.remaining).toBeGreaterThan(7000);
+    expect(timeout.remaining).toBeLessThanOrEqual(7200);
+  });
+
+  it('should parse timeout in hours', () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      limits: {
+        max_total_time: '1h',
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    const timeout = manager.checkTimeout();
+
+    // 1 hour = 3600 seconds
+    expect(timeout.remaining).toBeGreaterThan(3500);
+    expect(timeout.remaining).toBeLessThanOrEqual(3600);
+  });
+
+  it('should parse timeout in minutes', () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      limits: {
+        max_total_time: '30m',
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    const timeout = manager.checkTimeout();
+
+    // 30 minutes = 1800 seconds
+    expect(timeout.remaining).toBeGreaterThan(1700);
+    expect(timeout.remaining).toBeLessThanOrEqual(1800);
+  });
+
+  it('should return default for unknown resource type', () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    // @ts-expect-error - testing unknown resource type
+    const check = manager.checkResourceQuota('unknown');
+
+    expect(check.exceeded).toBe(false);
+    expect(check.current).toBe(0);
+    expect(check.limit).toBe(0);
+  });
+
+  it('should return Infinity limit as 0 for tasks without limits', () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    const check = manager.checkResourceQuota('tasks');
+
+    expect(check.limit).toBe(0); // Infinity converted to 0
+    expect(check.exceeded).toBe(false);
+  });
+
+  it('should return Infinity limit as 0 for healing without limits', () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    const check = manager.checkResourceQuota('healing');
+
+    expect(check.limit).toBe(0); // Infinity converted to 0
+    expect(check.exceeded).toBe(false);
+  });
+
+  it('should handle parseGitIdentity with invalid format', () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      git: {
+        author: 'InvalidFormatWithoutEmail',
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    manager.configureGit();
+
+    // Should fall back to defaults
+    expect(process.env.GIT_AUTHOR_NAME).toBe('Ralph CI');
+    expect(process.env.GIT_AUTHOR_EMAIL).toBe('[email protected]');
+
+    // Cleanup
+    delete process.env.GIT_AUTHOR_NAME;
+    delete process.env.GIT_AUTHOR_EMAIL;
+  });
+
+  it('should return undefined for empty clarify answers', () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      clarify_answers: {},
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    const answers = manager.getClarifyAnswers();
+
+    expect(answers).toBeUndefined();
+  });
+
+  it('should return undefined when all clarify answers are undefined', () => {
+    const config: CIConfig = {
+      enabled: true,
+      auto_approve_breakdown: true,
+      clarify_answers: {
+        project_type: undefined,
+        tech_stack: undefined,
+      },
+    };
+
+    const manager = new CIModeManager(testDir, config);
+    const answers = manager.getClarifyAnswers();
+
+    expect(answers).toBeUndefined();
+  });
 });

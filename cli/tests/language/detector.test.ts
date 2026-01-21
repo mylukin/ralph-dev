@@ -369,4 +369,457 @@ describe('LanguageDetector', () => {
       expect(config.verifyCommands).toEqual([]);
     });
   });
+
+  describe('C# detection', () => {
+    it('should detect C# project with csproj file', () => {
+      const projectDir = path.join(testDir, 'csharp-project');
+      fs.ensureDirSync(projectDir);
+
+      // Create a .csproj file (the detection uses glob pattern *.csproj)
+      fs.writeFileSync(path.join(projectDir, '*.csproj'), '<Project></Project>');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('csharp');
+      expect(config.testFramework).toBe('xunit');
+      expect(config.buildTool).toBe('dotnet');
+      expect(config.verifyCommands).toContain('dotnet format --verify-no-changes');
+      expect(config.verifyCommands).toContain('dotnet test');
+      expect(config.verifyCommands).toContain('dotnet build');
+    });
+
+    it('should detect C# project with sln file', () => {
+      const projectDir = path.join(testDir, 'csharp-sln-project');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, '*.sln'), 'Solution file');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('csharp');
+      expect(config.testFramework).toBe('xunit');
+      expect(config.buildTool).toBe('dotnet');
+    });
+  });
+
+  describe('Swift detection', () => {
+    it('should detect Swift project with Package.swift', () => {
+      const projectDir = path.join(testDir, 'swift-project');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'Package.swift'), '// swift-tools-version:5.5');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('swift');
+      expect(config.testFramework).toBe('XCTest');
+      expect(config.buildTool).toBe('swift');
+      expect(config.verifyCommands).toContain('swift build');
+      expect(config.verifyCommands).toContain('swift test');
+    });
+  });
+
+  describe('Ruby detection', () => {
+    it('should detect Ruby project with rspec', () => {
+      const projectDir = path.join(testDir, 'ruby-rspec-project');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'Gemfile'), 'source "https://rubygems.org"');
+      fs.ensureDirSync(path.join(projectDir, 'spec'));
+      fs.writeFileSync(path.join(projectDir, '.rubocop.yml'), 'AllCops:');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('ruby');
+      expect(config.testFramework).toBe('rspec');
+      expect(config.verifyCommands).toContain('rubocop');
+      expect(config.verifyCommands).toContain('rspec');
+    });
+
+    it('should detect Ruby project with minitest', () => {
+      const projectDir = path.join(testDir, 'ruby-minitest-project');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'Gemfile'), 'source "https://rubygems.org"');
+      fs.ensureDirSync(path.join(projectDir, 'test'));
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('ruby');
+      expect(config.testFramework).toBe('minitest');
+      expect(config.verifyCommands).toContain('rake test');
+    });
+
+    it('should fallback to bundle exec rake test', () => {
+      const projectDir = path.join(testDir, 'ruby-basic-project');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'Gemfile'), 'source "https://rubygems.org"');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('ruby');
+      expect(config.verifyCommands).toContain('bundle exec rake test');
+    });
+  });
+
+  describe('Additional JS framework detection', () => {
+    it('should detect Angular framework', () => {
+      const projectDir = path.join(testDir, 'angular-project');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'angular-app',
+        dependencies: {
+          '@angular/core': '^17.0.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.framework).toBe('angular');
+    });
+
+    it('should detect Svelte framework', () => {
+      const projectDir = path.join(testDir, 'svelte-project');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'svelte-app',
+        dependencies: {
+          svelte: '^4.0.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.framework).toBe('svelte');
+    });
+
+    it('should detect Nuxt framework', () => {
+      const projectDir = path.join(testDir, 'nuxt-project');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'nuxt-app',
+        dependencies: {
+          nuxt: '^3.0.0',
+          vue: '^3.0.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.framework).toBe('nuxt');
+    });
+  });
+
+  describe('Additional test framework detection', () => {
+    it('should detect Mocha test framework', () => {
+      const projectDir = path.join(testDir, 'mocha-project');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'mocha-app',
+        devDependencies: {
+          mocha: '^10.0.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.testFramework).toBe('mocha');
+    });
+
+    it('should detect Jasmine test framework', () => {
+      const projectDir = path.join(testDir, 'jasmine-project');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'jasmine-app',
+        devDependencies: {
+          jasmine: '^5.0.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.testFramework).toBe('jasmine');
+    });
+
+    it('should detect Playwright test framework', () => {
+      const projectDir = path.join(testDir, 'playwright-project');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'playwright-app',
+        devDependencies: {
+          '@playwright/test': '^1.40.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.testFramework).toBe('playwright');
+    });
+
+    it('should return npx playwright test when no scripts.test', () => {
+      const projectDir = path.join(testDir, 'playwright-no-script');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'playwright-app',
+        devDependencies: {
+          '@playwright/test': '^1.40.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.verifyCommands).toContain('npx playwright test');
+    });
+
+    it('should return npx vitest run when no scripts.test', () => {
+      const projectDir = path.join(testDir, 'vitest-no-script');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'vitest-app',
+        devDependencies: {
+          vitest: '^1.0.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.verifyCommands).toContain('npx vitest run');
+    });
+
+    it('should return npx jest when no scripts.test', () => {
+      const projectDir = path.join(testDir, 'jest-no-script');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'jest-app',
+        devDependencies: {
+          jest: '^29.0.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.verifyCommands).toContain('npx jest');
+    });
+  });
+
+  describe('Additional build tool detection', () => {
+    it('should detect Webpack build tool', () => {
+      const projectDir = path.join(testDir, 'webpack-project');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'webpack-app',
+        devDependencies: {
+          webpack: '^5.0.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+      fs.writeFileSync(path.join(projectDir, 'webpack.config.js'), 'module.exports = {}');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.buildTool).toBe('webpack');
+    });
+
+    it('should detect Rollup build tool', () => {
+      const projectDir = path.join(testDir, 'rollup-project');
+      fs.ensureDirSync(projectDir);
+
+      const packageJson = {
+        name: 'rollup-app',
+        devDependencies: {
+          rollup: '^4.0.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'package.json'), packageJson);
+      fs.writeFileSync(path.join(projectDir, 'rollup.config.js'), 'export default {}');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.buildTool).toBe('rollup');
+    });
+  });
+
+  describe('Python with alternative config files', () => {
+    it('should detect mypy with .mypy.ini', () => {
+      const projectDir = path.join(testDir, 'python-mypy-alt');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'requirements.txt'), 'mypy==1.0.0');
+      fs.writeFileSync(path.join(projectDir, '.mypy.ini'), '[mypy]');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('python');
+      expect(config.verifyCommands).toContain('mypy .');
+    });
+
+    it('should detect flake8 with setup.cfg', () => {
+      const projectDir = path.join(testDir, 'python-flake8-setup');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'requirements.txt'), 'flake8==6.0.0');
+      fs.writeFileSync(path.join(projectDir, 'setup.cfg'), '[flake8]');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('python');
+      expect(config.verifyCommands).toContain('flake8');
+    });
+  });
+
+  describe('PHP additional detection', () => {
+    it('should detect PHP with phpcs.xml linting', () => {
+      const projectDir = path.join(testDir, 'php-phpcs-project');
+      fs.ensureDirSync(projectDir);
+
+      const composerJson = {
+        name: 'test/php-phpcs',
+        require: { php: '^8.0' },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'composer.json'), composerJson);
+      fs.writeFileSync(path.join(projectDir, 'phpcs.xml'), '<ruleset></ruleset>');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('php');
+      expect(config.verifyCommands).toContain('./vendor/bin/phpcs');
+    });
+
+    it('should detect PHP with vendor/bin/phpcs', () => {
+      const projectDir = path.join(testDir, 'php-vendor-phpcs');
+      fs.ensureDirSync(projectDir);
+
+      const composerJson = {
+        name: 'test/php-vendor',
+        require: { php: '^8.0' },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'composer.json'), composerJson);
+      fs.ensureDirSync(path.join(projectDir, 'vendor/bin'));
+      fs.writeFileSync(path.join(projectDir, 'vendor/bin/phpcs'), '#!/bin/bash');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('php');
+      expect(config.verifyCommands).toContain('./vendor/bin/phpcs');
+    });
+
+    it('should detect PHP with vendor/bin/phpunit', () => {
+      const projectDir = path.join(testDir, 'php-vendor-phpunit');
+      fs.ensureDirSync(projectDir);
+
+      const composerJson = {
+        name: 'test/php-vendor-unit',
+        require: { php: '^8.0' },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'composer.json'), composerJson);
+      fs.ensureDirSync(path.join(projectDir, 'vendor/bin'));
+      fs.writeFileSync(path.join(projectDir, 'vendor/bin/phpunit'), '#!/bin/bash');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('php');
+      expect(config.verifyCommands).toContain('./vendor/bin/phpunit');
+    });
+
+    it('should detect Symfony framework', () => {
+      const projectDir = path.join(testDir, 'symfony-project');
+      fs.ensureDirSync(projectDir);
+
+      const composerJson = {
+        name: 'test/symfony-app',
+        require: {
+          php: '^8.0',
+          'symfony/symfony': '^6.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'composer.json'), composerJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('php');
+      expect(config.framework).toBe('symfony');
+    });
+
+    it('should detect CakePHP framework', () => {
+      const projectDir = path.join(testDir, 'cakephp-project');
+      fs.ensureDirSync(projectDir);
+
+      const composerJson = {
+        name: 'test/cakephp-app',
+        require: {
+          php: '^8.0',
+          'cakephp/cakephp': '^5.0',
+        },
+      };
+
+      fs.writeJSONSync(path.join(projectDir, 'composer.json'), composerJson);
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('php');
+      expect(config.framework).toBe('cakephp');
+    });
+
+    it('should handle composer.json parsing failure gracefully', () => {
+      const projectDir = path.join(testDir, 'php-invalid-composer');
+      fs.ensureDirSync(projectDir);
+
+      // Write invalid JSON
+      fs.writeFileSync(path.join(projectDir, 'composer.json'), 'invalid json {{{');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('php');
+      expect(config.framework).toBeUndefined();
+    });
+  });
+
+  describe('Kotlin with settings.gradle.kts', () => {
+    it('should detect Kotlin project with settings.gradle.kts', () => {
+      const projectDir = path.join(testDir, 'kotlin-settings-project');
+      fs.ensureDirSync(projectDir);
+
+      fs.writeFileSync(path.join(projectDir, 'settings.gradle.kts'), 'rootProject.name = "test"');
+
+      const config = LanguageDetector.detect(projectDir);
+
+      expect(config.language).toBe('kotlin');
+      expect(config.buildTool).toBe('gradle');
+    });
+  });
 });

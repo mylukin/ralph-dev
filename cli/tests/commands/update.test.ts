@@ -103,12 +103,14 @@ describe('Update Command', () => {
 describe('Update Command Integration', () => {
   let program: Command;
   const originalEnv = process.env;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let processExitSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'log').mockImplementation(() => {});
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
     process.env = { ...originalEnv };
 
     program = new Command();
@@ -144,5 +146,195 @@ describe('Update Command Integration', () => {
         // Help throws in commander
       }
     }).not.toThrow();
+  });
+
+  describe('--check mode', () => {
+    it('should show update available when new version exists', async () => {
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockReturnValue('99.0.0\n'); // Higher version
+
+      await program.parseAsync(['node', 'test', 'update', '--check']);
+
+      const allLogs = consoleLogSpy.mock.calls.flat().join('\n');
+      expect(allLogs).toContain('Update available');
+    });
+
+    it('should show up to date when on latest version', async () => {
+      const { execSync } = await import('child_process');
+      const { version } = await import('../../package.json');
+      vi.mocked(execSync).mockReturnValue(`${version}\n`);
+
+      await program.parseAsync(['node', 'test', 'update', '--check']);
+
+      const allLogs = consoleLogSpy.mock.calls.flat().join('\n');
+      expect(allLogs).toContain('latest version');
+    });
+
+    it('should handle npm view failure', async () => {
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('npm view failed');
+      });
+
+      await program.parseAsync(['node', 'test', 'update', '--check']);
+
+      const allLogs = consoleLogSpy.mock.calls.flat().join('\n');
+      expect(allLogs).toContain('Failed to check');
+    });
+
+    it('should output JSON when --json flag is used with --check', async () => {
+      const { execSync } = await import('child_process');
+      vi.mocked(execSync).mockReturnValue('99.0.0\n');
+
+      await program.parseAsync(['node', 'test', 'update', '--check', '--json']);
+
+      const allLogs = consoleLogSpy.mock.calls.flat().join('\n');
+      expect(allLogs).toContain('latestVersion');
+      expect(allLogs).toContain('updateAvailable');
+    });
+  });
+
+  describe('CLI update', () => {
+    it('should update CLI successfully', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(execSync).mockReturnValue('0.5.0\n');
+
+      await program.parseAsync(['node', 'test', 'update', '--cli-only']);
+
+      expect(vi.mocked(execSync)).toHaveBeenCalledWith(
+        expect.stringContaining('npm install -g ralph-dev@latest'),
+        expect.any(Object)
+      );
+    });
+
+    it('should try npx when npm fails', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      let callCount = 0;
+      vi.mocked(execSync).mockImplementation((cmd: any) => {
+        callCount++;
+        if (callCount === 1) throw new Error('npm failed');
+        return '0.5.0\n';
+      });
+
+      await program.parseAsync(['node', 'test', 'update', '--cli-only']);
+
+      expect(vi.mocked(execSync)).toHaveBeenCalledWith(
+        expect.stringContaining('npx npm install -g'),
+        expect.any(Object)
+      );
+    });
+
+    it('should handle update failure', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('update failed');
+      });
+
+      await program.parseAsync(['node', 'test', 'update', '--cli-only']);
+
+      const allLogs = consoleLogSpy.mock.calls.flat().join('\n');
+      expect(allLogs).toContain('update failed');
+    });
+  });
+
+  describe('Plugin update', () => {
+    it('should update marketplace via git pull', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+
+      // Marketplace exists with .git
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        const pathStr = String(path);
+        if (pathStr.includes('marketplaces')) return true;
+        if (pathStr.includes('.git')) return true;
+        return false;
+      });
+      vi.mocked(execSync).mockReturnValue('');
+
+      await program.parseAsync(['node', 'test', 'update', '--plugin-only']);
+
+      const gitPullCalls = vi.mocked(execSync).mock.calls.filter(
+        call => String(call[0]).includes('git pull')
+      );
+      expect(gitPullCalls.length).toBeGreaterThan(0);
+    });
+
+    it('should skip marketplace when not a git repo', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(execSync).mockReturnValue('0.5.0\n');
+
+      await program.parseAsync(['node', 'test', 'update', '--plugin-only']);
+
+      const gitPullCalls = vi.mocked(execSync).mock.calls.filter(
+        call => String(call[0]).includes('git pull')
+      );
+      expect(gitPullCalls).toHaveLength(0);
+    });
+
+    it('should download cache when cache directory exists', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        const pathStr = String(path);
+        if (pathStr.includes('cache') && !pathStr.includes('0.5.0')) return true;
+        return false;
+      });
+      vi.mocked(execSync).mockReturnValue('0.5.0\n');
+
+      await program.parseAsync(['node', 'test', 'update', '--plugin-only']);
+
+      const curlCalls = vi.mocked(execSync).mock.calls.filter(
+        call => String(call[0]).includes('curl')
+      );
+      expect(curlCalls.length).toBeGreaterThan(0);
+    });
+
+    it('should skip cache download when version already exists', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+
+      vi.mocked(fs.existsSync).mockImplementation((path: any) => {
+        const pathStr = String(path);
+        if (pathStr.includes('cache')) return true;
+        return false;
+      });
+      vi.mocked(execSync).mockReturnValue('0.5.0\n');
+
+      await program.parseAsync(['node', 'test', 'update', '--plugin-only']);
+
+      const allLogs = consoleLogSpy.mock.calls.flat().join('\n');
+      expect(allLogs).toContain('already exists');
+    });
+  });
+
+  describe('JSON output', () => {
+    it('should output JSON when --json flag is used', async () => {
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(execSync).mockReturnValue('0.5.0\n');
+
+      await program.parseAsync(['node', 'test', 'update', '--json']);
+
+      const allLogs = consoleLogSpy.mock.calls.flat().join('');
+      // Should contain JSON structure
+      expect(allLogs).toContain('"cli"');
+      expect(allLogs).toContain('"plugin"');
+    });
   });
 });
