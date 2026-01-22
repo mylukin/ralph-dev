@@ -38,15 +38,91 @@ echo "Current phase: $CURRENT_PHASE"
 
 ### Step 1: Extract Context (CRITICAL - Do This First)
 
-Before asking ANY questions, scan the conversation history for:
+Before asking ANY questions, scan the **entire** conversation history for context. This step determines PRD quality and compression resilience.
 
-- **UI/UX**: layouts, wireframes, pages, components, design decisions
-- **Data**: entities, models, schemas, fields, relationships
-- **API**: endpoints, requests, responses, authentication
-- **Flows**: user journeys, processes, interactions
-- **Decisions**: choices made, alternatives considered, trade-offs
+#### 1.1 Create Context Directory
 
-Convert to structured formats as appropriate (ASCII wireframes, TypeScript interfaces, endpoint specs, decision logs).
+```bash
+mkdir -p .ralph-dev/context
+```
+
+#### 1.2 Extract & Save Context Artifacts
+
+Scan for these categories and save **verbatim** where possible:
+
+| Category | What to Extract | Save To |
+|----------|-----------------|---------|
+| **Plan Mode** | Full plan content (copy exactly as-is) | `.ralph-dev/context/plan.md` |
+| **User Intent** | Original requirement statements (quoted) | `.ralph-dev/context/user-intent.md` |
+| **File References** | All file paths mentioned/read/edited | `.ralph-dev/context/files-referenced.md` |
+| **UI/UX** | Wireframes, layouts, components, design tokens | `.ralph-dev/context/ui-design.md` |
+| **Data Models** | Entities, schemas, relationships, field specs | `.ralph-dev/context/data-model.md` |
+| **API Specs** | Endpoints, requests, responses, auth | `.ralph-dev/context/api-spec.md` |
+| **Decisions** | Choices made, alternatives, trade-offs | `.ralph-dev/context/decisions.md` |
+| **External Links** | URLs, documentation links, references | `.ralph-dev/context/external-links.md` |
+
+#### 1.3 Context File Format
+
+Each context file should follow this structure:
+
+```markdown
+# [Category Name]
+
+## Source
+- Extracted from: [conversation turn / file path / plan mode]
+- Timestamp: [YYYY-MM-DD HH:MM]
+
+## Content
+
+[Verbatim content or structured extraction]
+
+## References
+- [List of related files/links]
+```
+
+#### 1.4 Plan Mode Handling (CRITICAL)
+
+If a plan was created in Plan Mode before invoking ralph-dev:
+
+1. **Copy the ENTIRE plan verbatim** - do not summarize
+2. Save to `.ralph-dev/context/plan.md`
+3. The plan becomes the primary source of implementation intent
+4. PRD should reference and expand on the plan, not replace it
+
+#### 1.5 File Reference Index
+
+Create `.ralph-dev/context/files-referenced.md` with ALL files mentioned:
+
+```markdown
+# Referenced Files Index
+
+## Files Read
+- `/path/to/file1.ts` - [brief description of why referenced]
+- `/path/to/file2.md` - [brief description]
+
+## Files to Create/Modify
+- `/path/to/new-file.ts` - [purpose]
+
+## External URLs
+- https://example.com/docs - [what it contains]
+```
+
+#### 1.6 User Intent Preservation
+
+In `.ralph-dev/context/user-intent.md`, preserve user's **exact words**:
+
+```markdown
+# User Intent Record
+
+## Original Request
+> [Quote user's exact requirement text]
+
+## Clarifications
+> [Quote any follow-up clarifications]
+
+## Constraints Mentioned
+> [Quote any constraints user specified]
+```
 
 ### Step 2: Identify Gaps
 
@@ -66,23 +142,77 @@ Determine what's MISSING after extraction:
 
 ### Step 4: Generate PRD
 
-Create PRD with these sections (include only if relevant):
+Create PRD with the following structure. **CRITICAL**: Include Context Index at the top for compression resilience.
 
-1. **Project Overview** - Goals, scope, constraints
-2. **Technical Stack** - Language, frameworks, database, deployment
-3. **UI/UX Design** - Wireframes, components, design tokens *(if discussed)*
-4. **Data Model** - Entities, relationships, schemas *(if discussed)*
-5. **API Contracts** - Endpoints, auth, errors *(if discussed)*
-6. **User Flows** - Key journeys, edge cases *(if discussed)*
-7. **User Stories** - Epics with acceptance criteria
-8. **Design Decisions** - Choices with rationale *(if discussed)*
-9. **Non-Functional Requirements** - Performance, security, testing
-10. **Appendix: Context Summary** - Key points from conversation
+#### PRD Structure
 
-### Step 5: Save PRD
+```markdown
+# [Project Name] - Product Requirements Document
+
+## Context Index (CRITICAL - Read These First After Compression)
+
+> **Recovery Instructions**: If context was compressed, read these files in order:
+
+| Priority | File | Contains |
+|----------|------|----------|
+| 1 | `.ralph-dev/context/plan.md` | Original implementation plan (if exists) |
+| 2 | `.ralph-dev/context/user-intent.md` | User's exact requirements |
+| 3 | `.ralph-dev/context/files-referenced.md` | All file paths and URLs |
+| 4 | `.ralph-dev/context/decisions.md` | Design decisions and rationale |
+| 5 | `.ralph-dev/context/[domain].md` | Domain-specific details |
+
+---
+
+## 1. Project Overview
+[Goals, scope, constraints]
+
+## 2. Technical Stack
+[Language, frameworks, database, deployment]
+
+## 3. UI/UX Design *(if discussed)*
+[Reference: `.ralph-dev/context/ui-design.md`]
+
+## 4. Data Model *(if discussed)*
+[Reference: `.ralph-dev/context/data-model.md`]
+
+## 5. API Contracts *(if discussed)*
+[Reference: `.ralph-dev/context/api-spec.md`]
+
+## 6. User Flows *(if discussed)*
+[Key journeys, edge cases]
+
+## 7. User Stories
+[Epics with acceptance criteria]
+
+## 8. Design Decisions *(if discussed)*
+[Reference: `.ralph-dev/context/decisions.md`]
+
+## 9. Non-Functional Requirements
+[Performance, security, testing]
+
+## Appendix A: Original Plan *(if from Plan Mode)*
+
+> **Source**: `.ralph-dev/context/plan.md`
+
+[Include FULL plan content here - do not summarize]
+
+## Appendix B: User Intent Record
+
+> **Source**: `.ralph-dev/context/user-intent.md`
+
+[Include user's exact words]
+
+## Appendix C: Referenced Files
+
+> **Source**: `.ralph-dev/context/files-referenced.md`
+
+[List all file paths and their relevance]
+```
+
+### Step 5: Save PRD and Context Files
 
 ```bash
-mkdir -p .ralph-dev
+mkdir -p .ralph-dev/context
 
 # REQUIRED: Backup existing PRD before overwriting
 if [ -f ".ralph-dev/prd.md" ]; then
@@ -91,9 +221,19 @@ if [ -f ".ralph-dev/prd.md" ]; then
   # Keep only last 5 backups
   ls -t .ralph-dev/prd.*.bak 2>/dev/null | tail -n +6 | xargs -r rm -f
 fi
-
-# Save PRD using Write tool to .ralph-dev/prd.md
 ```
+
+**Save Order (Use Write tool for each):**
+
+1. Save context files first (only those with content):
+   - `.ralph-dev/context/plan.md` - If Plan Mode was used
+   - `.ralph-dev/context/user-intent.md` - Always (user's exact words)
+   - `.ralph-dev/context/files-referenced.md` - If files were referenced
+   - `.ralph-dev/context/decisions.md` - If decisions were made
+   - `.ralph-dev/context/[domain].md` - Domain-specific (ui-design, data-model, api-spec)
+
+2. Save PRD last:
+   - `.ralph-dev/prd.md` - Main PRD with Context Index
 
 ### Step 6: Update State & Return Result
 
@@ -103,12 +243,19 @@ ralph-dev state update --phase breakdown
 ```
 
 **REQUIRED Output Format** (orchestrator parses this):
+
 ```yaml
 ---PHASE RESULT---
 phase: clarify
 status: complete
 prd_file: .ralph-dev/prd.md
+context_files:
+  - .ralph-dev/context/user-intent.md
+  - .ralph-dev/context/files-referenced.md
+  - .ralph-dev/context/plan.md        # if Plan Mode was used
+  - .ralph-dev/context/decisions.md   # if decisions were made
 context_extracted: true/false
+plan_mode_preserved: true/false
 next_phase: breakdown
 ---END PHASE RESULT---
 ```
@@ -132,6 +279,16 @@ next_phase: breakdown
 ---
 
 ## Constraints
+
+### Context Preservation (CRITICAL)
+
+- **NEVER** summarize Plan Mode content - copy verbatim to `.ralph-dev/context/plan.md`
+- **NEVER** paraphrase user requirements - quote exact words in `user-intent.md`
+- **NEVER** omit file paths - every referenced file goes to `files-referenced.md`
+- **ALWAYS** save context files BEFORE generating PRD
+- **ALWAYS** include Context Index at top of PRD for compression recovery
+
+### General Rules
 
 - **NEVER** lose context from prior discussions
 - **NEVER** ask questions about information already provided
