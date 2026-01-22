@@ -80,9 +80,13 @@ export class State {
   /**
    * Check if can transition to target phase
    * @param targetPhase Target phase to transition to
-   * @returns true if transition is allowed
+   * @returns true if transition is allowed (includes staying in same phase for idempotency)
    */
   canTransitionTo(targetPhase: Phase): boolean {
+    // Allow staying in same phase (idempotent operation)
+    if (targetPhase === this._phase) {
+      return true;
+    }
     const allowedPhases = State.VALID_TRANSITIONS.get(this._phase);
     if (!allowedPhases) {
       return false;

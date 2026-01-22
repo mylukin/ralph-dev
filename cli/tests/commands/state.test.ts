@@ -207,6 +207,25 @@ describe('state commands', () => {
           .parseAsync(['node', 'test', 'state', 'set', '--phase', phase]);
       }
     });
+
+    it('should handle file system error during set', async () => {
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      // Create the directory but make it read-only to cause write failure
+      const ralphDevDir = path.join(testDir, '.ralph-dev');
+      fs.ensureDirSync(ralphDevDir);
+      fs.chmodSync(ralphDevDir, 0o444);
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'set', '--phase', 'clarify']);
+
+      // Restore permissions for cleanup
+      fs.chmodSync(ralphDevDir, 0o755);
+
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(processExitSpy).toHaveBeenCalledWith(8);
+    });
   });
 
   describe('state update', () => {
@@ -487,6 +506,263 @@ describe('state commands', () => {
       expect(consoleLogSpy).toHaveBeenCalledWith(
         expect.stringContaining('"cleared": true')
       );
+    });
+
+    it('should handle file system error during clear with JSON output', async () => {
+      // Create state file first, then make the file itself read-only
+      const ralphDevDir = path.join(testDir, '.ralph-dev');
+      fs.ensureDirSync(ralphDevDir);
+      fs.writeJSONSync(stateFile, {
+        phase: 'implement',
+        startedAt: '2025-01-19T09:00:00.000Z',
+        updatedAt: '2025-01-19T10:00:00.000Z',
+      });
+
+      // Make the file read-only (not the directory)
+      fs.chmodSync(stateFile, 0o444);
+      // Also make the directory read-only so the file cannot be deleted
+      fs.chmodSync(ralphDevDir, 0o555);
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'clear']);
+
+      // Restore permissions for cleanup
+      fs.chmodSync(ralphDevDir, 0o755);
+      fs.chmodSync(stateFile, 0o644);
+
+      // The clear operation should fail due to file permission issues
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(processExitSpy).toHaveBeenCalledWith(8);
+    });
+  });
+
+  describe('state archive', () => {
+    it('should register state archive command', () => {
+      registerStateCommands(program, testDir);
+
+      const stateCommand = program.commands.find(cmd => cmd.name() === 'state');
+      const archiveCommand = stateCommand?.commands.find(cmd => cmd.name() === 'archive');
+
+      expect(archiveCommand).toBeDefined();
+    });
+
+    it('should archive complete session successfully', async () => {
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      // Set up a complete session
+      const ralphDevDir = path.join(testDir, '.ralph-dev');
+      fs.ensureDirSync(ralphDevDir);
+      fs.writeJSONSync(stateFile, {
+        phase: 'complete',
+        startedAt: '2025-01-19T09:00:00.000Z',
+        updatedAt: '2025-01-19T10:00:00.000Z',
+      });
+      fs.writeFileSync(path.join(ralphDevDir, 'prd.md'), '# PRD\nTest content');
+      fs.ensureDirSync(path.join(ralphDevDir, 'tasks'));
+      fs.writeFileSync(path.join(ralphDevDir, 'tasks', 'index.json'), '{}');
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'archive']);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Session archived'));
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+
+      // Verify state.json is cleared
+      expect(fs.existsSync(stateFile)).toBe(false);
+
+      // Verify archive was created
+      const archiveDir = path.join(ralphDevDir, 'archive');
+      expect(fs.existsSync(archiveDir)).toBe(true);
+    });
+
+    it('should block archive for incomplete session', async () => {
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      const ralphDevDir = path.join(testDir, '.ralph-dev');
+      fs.ensureDirSync(ralphDevDir);
+      fs.writeJSONSync(stateFile, {
+        phase: 'implement',
+        startedAt: '2025-01-19T09:00:00.000Z',
+        updatedAt: '2025-01-19T10:00:00.000Z',
+      });
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'archive']);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Archive blocked'));
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+
+      // State should still exist
+      expect(fs.existsSync(stateFile)).toBe(true);
+    });
+
+    it('should force archive incomplete session with --force flag', async () => {
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      const ralphDevDir = path.join(testDir, '.ralph-dev');
+      fs.ensureDirSync(ralphDevDir);
+      fs.writeJSONSync(stateFile, {
+        phase: 'implement',
+        startedAt: '2025-01-19T09:00:00.000Z',
+        updatedAt: '2025-01-19T10:00:00.000Z',
+      });
+      fs.writeFileSync(path.join(ralphDevDir, 'prd.md'), '# PRD\nTest');
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'archive', '--force']);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Session archived'));
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+
+      // State should be cleared
+      expect(fs.existsSync(stateFile)).toBe(false);
+    });
+
+    it('should handle no session data to archive', async () => {
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      // Ensure .ralph-dev directory is empty
+      fs.ensureDirSync(path.join(testDir, '.ralph-dev'));
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'archive']);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('No session data to archive'));
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+    });
+
+    it('should output JSON when --json flag is used for successful archive', async () => {
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      const ralphDevDir = path.join(testDir, '.ralph-dev');
+      fs.ensureDirSync(ralphDevDir);
+      fs.writeJSONSync(stateFile, {
+        phase: 'complete',
+        startedAt: '2025-01-19T09:00:00.000Z',
+        updatedAt: '2025-01-19T10:00:00.000Z',
+      });
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'archive', '--json']);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"archived": true'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"archivePath"'));
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+    });
+
+    it('should output JSON when --json flag is used for blocked archive', async () => {
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      const ralphDevDir = path.join(testDir, '.ralph-dev');
+      fs.ensureDirSync(ralphDevDir);
+      fs.writeJSONSync(stateFile, {
+        phase: 'breakdown',
+        startedAt: '2025-01-19T09:00:00.000Z',
+        updatedAt: '2025-01-19T10:00:00.000Z',
+      });
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'archive', '--json']);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"blocked": true'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"blockedReason"'));
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+    });
+
+    it('should handle file system error during archive', async () => {
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      const ralphDevDir = path.join(testDir, '.ralph-dev');
+      fs.ensureDirSync(ralphDevDir);
+      fs.writeJSONSync(stateFile, {
+        phase: 'complete',
+        startedAt: '2025-01-19T09:00:00.000Z',
+        updatedAt: '2025-01-19T10:00:00.000Z',
+      });
+
+      // Create archive directory and make it read-only to cause error
+      const archiveDir = path.join(ralphDevDir, 'archive');
+      fs.ensureDirSync(archiveDir);
+      fs.chmodSync(archiveDir, 0o444);
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'archive']);
+
+      // Restore permissions for cleanup
+      fs.chmodSync(archiveDir, 0o755);
+
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(processExitSpy).toHaveBeenCalledWith(8);
+    });
+
+    it('should archive all session files including logs', async () => {
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      const ralphDevDir = path.join(testDir, '.ralph-dev');
+      fs.ensureDirSync(ralphDevDir);
+      fs.writeJSONSync(stateFile, {
+        phase: 'complete',
+        startedAt: '2025-01-19T09:00:00.000Z',
+        updatedAt: '2025-01-19T10:00:00.000Z',
+      });
+      fs.writeFileSync(path.join(ralphDevDir, 'prd.md'), '# PRD');
+      fs.ensureDirSync(path.join(ralphDevDir, 'tasks'));
+      fs.writeFileSync(path.join(ralphDevDir, 'tasks', 'index.json'), '{}');
+      fs.writeFileSync(path.join(ralphDevDir, 'progress.log'), 'progress');
+      fs.writeFileSync(path.join(ralphDevDir, 'debug.log'), 'debug');
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'archive', '--json']);
+
+      // Find the JSON output - it's wrapped in a CLIResponse structure
+      const jsonCall = consoleLogSpy.mock.calls.find((call: unknown[]) => {
+        const str = String(call[0]);
+        return str.includes('"archived"') && str.includes('"files"');
+      });
+      expect(jsonCall).toBeDefined();
+      const response = JSON.parse(jsonCall![0]);
+      // The files array is inside the data property (CLIResponse wrapper)
+      const files = response.data?.files || response.files;
+      expect(files).toContain('state.json');
+      expect(files).toContain('prd.md');
+      expect(files).toContain('tasks');
+      expect(files).toContain('progress.log');
+      expect(files).toContain('debug.log');
+
+      // Verify original files are removed
+      expect(fs.existsSync(stateFile)).toBe(false);
+      expect(fs.existsSync(path.join(ralphDevDir, 'prd.md'))).toBe(false);
+      expect(fs.existsSync(path.join(ralphDevDir, 'tasks'))).toBe(false);
+      expect(fs.existsSync(path.join(ralphDevDir, 'progress.log'))).toBe(false);
+      expect(fs.existsSync(path.join(ralphDevDir, 'debug.log'))).toBe(false);
+    });
+
+    it('should display blocked reason with current phase in text output', async () => {
+      const now = new Date('2025-01-19T10:00:00.000Z');
+      vi.setSystemTime(now);
+
+      const ralphDevDir = path.join(testDir, '.ralph-dev');
+      fs.ensureDirSync(ralphDevDir);
+      fs.writeJSONSync(stateFile, {
+        phase: 'heal',
+        startedAt: '2025-01-19T09:00:00.000Z',
+        updatedAt: '2025-01-19T10:00:00.000Z',
+      });
+
+      registerStateCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'state', 'archive']);
+
+      // Verify text output contains phase info
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('heal'));
+      expect(processExitSpy).toHaveBeenCalledWith(0);
     });
   });
 });

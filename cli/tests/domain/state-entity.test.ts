@@ -188,9 +188,37 @@ describe('State Domain Entity', () => {
       expect(state.canTransitionTo('implement')).toBe(false);
       expect(state.canTransitionTo('deliver')).toBe(false);
     });
+
+    it('should allow idempotent transition (same phase)', () => {
+      // Arrange - test all phases for idempotency
+      const phases: Phase[] = ['clarify', 'breakdown', 'implement', 'heal', 'deliver', 'complete'];
+
+      for (const phase of phases) {
+        const state = new State({ ...baseConfig, phase });
+
+        // Act
+        const result = state.canTransitionTo(phase);
+
+        // Assert - staying in same phase should always be allowed
+        expect(result).toBe(true);
+      }
+    });
   });
 
   describe('transitionTo', () => {
+    it('should update timestamp on idempotent transition (same phase)', () => {
+      // Arrange
+      const state = new State({ ...baseConfig, phase: 'implement' });
+      const originalTimestamp = state.updatedAt.toISOString();
+
+      // Act - transition to same phase
+      state.transitionTo('implement');
+
+      // Assert - phase unchanged but timestamp updated
+      expect(state.phase).toBe('implement');
+      expect(state.updatedAt.toISOString()).not.toBe(originalTimestamp);
+    });
+
     it('should transition from clarify to breakdown', () => {
       // Arrange
       const state = new State({ ...baseConfig, phase: 'clarify' });
