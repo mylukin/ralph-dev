@@ -3,6 +3,8 @@ import chalk from 'chalk';
 import * as path from 'path';
 import { FileSystemIndexRepository } from '../repositories/index-repository.service';
 import { FileSystemService } from '../infrastructure/file-system.service';
+import { successResponse, outputResponse } from '../core/response-wrapper';
+import { handleError, Errors } from '../core/error-handler';
 
 /**
  * AI-powered language detection command
@@ -69,15 +71,15 @@ export function registerDetectAICommand(program: Command, workspaceDir: string):
   program
     .command('detect-ai-save <result>')
     .description('Save AI detection result to index metadata')
-    .action(async (result) => {
+    .option('--json', 'Output as JSON')
+    .action(async (result, options) => {
       try {
         const languageConfig = JSON.parse(result);
 
         // Validate required fields
         if (!languageConfig.language || !languageConfig.verifyCommands) {
-          console.error(chalk.red('❌ Invalid detection result format'));
-          console.error(chalk.gray('Required fields: language, verifyCommands'));
-          process.exit(1);
+          handleError(Errors.validationError('Invalid detection result format. Required fields: language, verifyCommands'), options.json);
+          return;
         }
 
         // Save to index using FileSystemIndexRepository
@@ -86,35 +88,37 @@ export function registerDetectAICommand(program: Command, workspaceDir: string):
         const indexRepository = new FileSystemIndexRepository(fileSystem, tasksDir);
         await indexRepository.updateMetadata({ languageConfig });
 
-        console.log(chalk.green('✅ Language configuration saved to index metadata'));
-        console.log(chalk.bold('\nDetected Configuration:'));
-        console.log(`Language: ${chalk.cyan(languageConfig.language)}`);
-        if (languageConfig.framework) {
-          console.log(`Framework: ${chalk.green(languageConfig.framework)}`);
-        }
-        if (languageConfig.confidence) {
-          console.log(`Confidence: ${chalk.yellow((languageConfig.confidence * 100).toFixed(0) + '%')}`);
-        }
-        console.log(chalk.bold('\nVerification Commands:'));
-        languageConfig.verifyCommands.forEach((cmd: string) => {
-          console.log(`  ${chalk.gray('$')} ${cmd}`);
+        const response = successResponse({
+          saved: true,
+          languageConfig,
         });
 
-        if (languageConfig.evidence) {
-          console.log(chalk.bold('\nEvidence:'));
-          languageConfig.evidence.forEach((ev: string) => {
-            console.log(`  • ${ev}`);
+        outputResponse(response, options.json, (data) => {
+          console.log(chalk.green('✅ Language configuration saved to index metadata'));
+          console.log(chalk.bold('\nDetected Configuration:'));
+          console.log(`Language: ${chalk.cyan(data.languageConfig.language)}`);
+          if (data.languageConfig.framework) {
+            console.log(`Framework: ${chalk.green(data.languageConfig.framework)}`);
+          }
+          if (data.languageConfig.confidence) {
+            console.log(`Confidence: ${chalk.yellow((data.languageConfig.confidence * 100).toFixed(0) + '%')}`);
+          }
+          console.log(chalk.bold('\nVerification Commands:'));
+          data.languageConfig.verifyCommands.forEach((cmd: string) => {
+            console.log(`  ${chalk.gray('$')} ${cmd}`);
           });
-        }
+
+          if (data.languageConfig.evidence) {
+            console.log(chalk.bold('\nEvidence:'));
+            data.languageConfig.evidence.forEach((ev: string) => {
+              console.log(`  • ${ev}`);
+            });
+          }
+        });
 
         process.exit(0);
       } catch (error) {
-        console.error(chalk.red('❌ Failed to parse detection result'));
-        console.error(chalk.gray('Expected JSON string with language configuration'));
-        if (error instanceof Error) {
-          console.error(chalk.red(error.message));
-        }
-        process.exit(1);
+        handleError(Errors.parsingError('Failed to parse detection result. Expected JSON string with language configuration', error), options.json);
       }
     });
 }

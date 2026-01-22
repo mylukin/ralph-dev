@@ -202,7 +202,7 @@ describe('detect-ai commands', () => {
       registerDetectAICommand(program, testDir);
       await program.parseAsync(['node', 'test', 'detect-ai-save', JSON.stringify(invalidResult)]);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('❌ Invalid detection result format'));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid detection result format'));
       expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Required fields: language, verifyCommands'));
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
@@ -215,7 +215,7 @@ describe('detect-ai commands', () => {
       registerDetectAICommand(program, testDir);
       await program.parseAsync(['node', 'test', 'detect-ai-save', JSON.stringify(invalidResult)]);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('❌ Invalid detection result format'));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid detection result format'));
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
@@ -223,7 +223,7 @@ describe('detect-ai commands', () => {
       registerDetectAICommand(program, testDir);
       await program.parseAsync(['node', 'test', 'detect-ai-save', 'invalid-json{']);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('❌ Failed to parse detection result'));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to parse detection result'));
       expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Expected JSON string'));
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
@@ -232,7 +232,7 @@ describe('detect-ai commands', () => {
       registerDetectAICommand(program, testDir);
       await program.parseAsync(['node', 'test', 'detect-ai-save', '']);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('❌ Failed to parse detection result'));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to parse detection result'));
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
@@ -249,7 +249,7 @@ describe('detect-ai commands', () => {
       registerDetectAICommand(program, testDir);
       await program.parseAsync(['node', 'test', 'detect-ai-save', JSON.stringify(validResult)]);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('❌ Failed to parse detection result'));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to parse detection result'));
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
