@@ -212,7 +212,9 @@ describe('Update Command Integration', () => {
       const fs = await import('fs');
 
       vi.mocked(fs.existsSync).mockReturnValue(false);
-      vi.mocked(execSync).mockReturnValue('0.5.0\n');
+      // Mock a version strictly higher than the installed one so the update
+      // path always runs, independent of the package's current version.
+      vi.mocked(execSync).mockReturnValue('99.0.0\n');
 
       await program.parseAsync(['node', 'test', 'update', '--cli-only']);
 
