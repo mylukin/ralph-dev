@@ -200,6 +200,23 @@ export class FileSystemTaskRepository implements ITaskRepository {
   }
 
   /**
+   * Resolve the absolute path of a task's Markdown file.
+   */
+  async getFilePath(taskId: string): Promise<string | null> {
+    try {
+      const index = await this.readIndex();
+      const taskEntry = index.tasks[taskId];
+      if (!taskEntry) {
+        return null;
+      }
+      const relativeOrAbsolute = this.getTaskFilePath(taskId, taskEntry.module, taskEntry.filePath);
+      return path.resolve(relativeOrAbsolute);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Read index.json file
    */
   private async readIndex(): Promise<TaskIndex> {
@@ -295,8 +312,16 @@ export class FileSystemTaskRepository implements ITaskRepository {
       });
     }
 
+    // Lifecycle notes are stored in frontmatter for enriched tasks (whose body
+    // is author-owned). Fall back to the body `## Notes` section for tasks
+    // generated purely from fields.
     const notesMatch = body.match(/##\s+Notes\s*\n([\s\S]+?)(?=\n##|$)/m);
-    const notes = notesMatch ? notesMatch[1].trim() : '';
+    const notes = frontmatter.notes ?? (notesMatch ? notesMatch[1].trim() : '');
+
+    // Preserve the full Markdown body verbatim so enriched sections
+    // (接口/契約, TDD, 完成定义 DoD, …) survive status transitions. Normalize
+    // surrounding whitespace to keep round-trips idempotent.
+    const preservedBody = body.replace(/^\n+/, '').replace(/\s+$/, '');
 
     // Create domain entity from parsed data
     const taskConfig: TaskConfig = {
@@ -310,6 +335,10 @@ export class FileSystemTaskRepository implements ITaskRepository {
       dependencies: frontmatter.dependencies || [],
       testRequirements: frontmatter.testRequirements,
       notes,
+      body: preservedBody || undefined,
+      startedAt: frontmatter.startedAt,
+      completedAt: frontmatter.completedAt,
+      failedAt: frontmatter.failedAt,
     };
 
     return new Task(taskConfig);
@@ -339,9 +368,34 @@ export class FileSystemTaskRepository implements ITaskRepository {
       frontmatter.testRequirements = task.testRequirements;
     }
 
+    // Persist lifecycle timestamps to frontmatter so they survive reloads
+    // (they back the duration computation in getActualDuration()).
+    if (task.startedAt) {
+      frontmatter.startedAt = task.startedAt.toISOString();
+    }
+    if (task.completedAt) {
+      frontmatter.completedAt = task.completedAt.toISOString();
+    }
+    if (task.failedAt) {
+      frontmatter.failedAt = task.failedAt.toISOString();
+    }
+
+    // Preserve the author-owned body verbatim when present: only the
+    // frontmatter is regenerated, so enriched sections are never wiped on a
+    // status change. Lifecycle notes move to frontmatter to keep the body intact.
+    const preservedBody = task.body?.trim();
+    if (preservedBody) {
+      if (task.notes) {
+        frontmatter.notes = task.notes;
+      }
+      const frontmatterStr = yaml.stringify(frontmatter);
+      return `---\n${frontmatterStr}---\n\n${preservedBody}\n`;
+    }
+
     const frontmatterStr = yaml.stringify(frontmatter);
 
-    // Build body
+    // Fallback: generate a minimal body from fields (tasks created without a
+    // rich body, e.g. plain `tasks create`).
     let body = `# ${task.description}\n\n`;
 
     if (task.acceptanceCriteria && task.acceptanceCriteria.length > 0) {

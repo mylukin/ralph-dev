@@ -74,24 +74,67 @@ For each user story, create 1-3 tasks following these rules:
 
 **CRITICAL:** Create tasks one at a time for context-compression resilience.
 
+**CRITICAL — write the FULL enriched body, not just a description.** Every task
+MUST carry the complete 8-section contract (see *Task File Format* below).
+Author it into a temporary Markdown file and pass it with `--body-file`, so the
+contract is preserved verbatim and reaches the implementer in Phase 3. A bare
+`--description` task is the thin version the system must refuse to ship.
+
 ```bash
 # Initialize tasks
 ralph-dev tasks init --project-goal "..." --language "..."
 
-# Create each task immediately (not batched)
+# For each task: write the enriched 8-section body to a temp file …
+BODY_FILE="$(mktemp -t ralph-task.XXXXXX.md)"
+cat > "$BODY_FILE" <<'EOF'
+# {Task Title}
+
+## Context
+{Why this task exists and where it fits in the system}
+
+## Spec Basis
+{Cite the PRD or design-doc clauses this task implements}
+
+## Interface / Contract
+{Inputs, outputs, type signatures, error returns}
+
+## TDD
+{The failing tests to write first and the cases to cover}
+
+## Edge Cases & Failure Modes
+{Boundary conditions, concurrency, errors, rollback}
+
+## Files Touched
+{Files to be created or modified}
+
+## Definition of Done
+{Verifiable definition-of-done checklist}
+
+## Acceptance Criteria
+1. {Testable criterion}
+2. {Testable criterion}
+EOF
+
+# … then create the task with the body attached (one at a time, not batched)
 ralph-dev tasks create \
   --id "{module}.{feature}" \
   --module "{module}" \
   --priority {N} \
   --estimated-minutes {M} \
-  --description "..." \
+  --description "{one-line summary}" \
   --criteria "Criterion 1" \
   --criteria "Criterion 2" \
+  --body-file "$BODY_FILE" \
   --json
+
+rm -f "$BODY_FILE"
 
 # Verify creation
 ralph-dev tasks list --json
 ```
+
+> The `--criteria` flags still populate the indexed projection (used for quick
+> listing). The `## Acceptance Criteria` section in the body should mirror them.
 
 ### Step 5: Show Task Plan for Approval
 
@@ -151,6 +194,10 @@ next_phase: implement
 
 ## Task File Format
 
+Tasks use an **8-section contract**. The frontmatter is managed by the CLI and
+regenerated on every status change; the body below it is **author-owned and
+preserved verbatim** — status transitions never wipe it.
+
 ```markdown
 ---
 id: {module}.{task-name}
@@ -162,13 +209,36 @@ dependencies: [{task-ids}]
 ---
 # {Task Title}
 
-## Description
-{What needs to be implemented}
+## Context
+{Why this task exists and where it fits in the system}
+
+## Spec Basis
+{Cite the PRD or design-doc clauses this task implements}
+
+## Interface / Contract
+{Inputs, outputs, type signatures, error returns}
+
+## TDD
+{The failing tests to write first and the cases to cover}
+
+## Edge Cases & Failure Modes
+{Boundary conditions, concurrency, errors, rollback}
+
+## Files Touched
+{Files to be created or modified}
+
+## Definition of Done
+{Verifiable definition-of-done checklist}
 
 ## Acceptance Criteria
 1. {Testable criterion}
 2. {Testable criterion}
 ```
+
+**How it is persisted:** author this body into a temp file and pass it via
+`ralph-dev tasks create --body-file <path>` (see Step 4). The CLI stores it
+verbatim; `tasks start/done/fail` only rewrite the frontmatter, so the enriched
+sections survive the full task lifecycle.
 
 ---
 

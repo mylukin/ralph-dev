@@ -93,21 +93,32 @@ done
 
 **CRITICAL:** Use Task tool to spawn fresh agent for each task.
 
+**FIRST — resolve the task file path** so the implementer can read the full
+enriched contract (Context, Interface/Contract, TDD, Edge Cases & Failure Modes,
+Definition of Done, …). The JSON projection only carries lightweight metadata;
+the rich body lives in the file:
+
+```bash
+TASK_FILE=$(ralph-dev tasks get "$TASK_ID" --json | jq -r '.filePath')
+```
+
 ```
 Tool: Task
 Parameters:
   subagent_type: "general-purpose"
   description: "Implement task: {task.id}"
-  prompt: "{implementer_prompt}"
+  prompt: "{implementer_prompt}"   # MUST include the line: "Read the full task file at {TASK_FILE} first."
   run_in_background: false
 ```
 
 **Implementer Prompt Must Include:**
-1. Task ID, description, acceptance criteria
-2. TDD workflow: RED → GREEN → REFACTOR
-3. Autonomous decision-making (no questions allowed)
-4. Verification: run tests before reporting
-5. Output format: `report_implementation_result` tool call
+1. **The task file path (`{TASK_FILE}`) with an instruction to read it first** —
+   it holds the full contract, not just the description
+2. Task ID, description, acceptance criteria
+3. TDD workflow: RED → GREEN → REFACTOR
+4. Autonomous decision-making (no questions allowed)
+5. Verification: run tests before reporting
+6. Output format: `report_implementation_result` tool call
 
 **Implementer Output (Tool Call):**
 ```typescript

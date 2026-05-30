@@ -106,6 +106,42 @@ describe('TaskService', () => {
       expect(logger.wasInfoCalledWith('Creating task: test.task')).toBe(true);
       expect(logger.wasInfoCalledWith('Task created: test.task')).toBe(true);
     });
+
+    it('should persist the enriched body when provided', async () => {
+      // Arrange
+      const input: CreateTaskInput = {
+        id: 'auth.middleware',
+        module: 'auth',
+        description: 'Auth middleware',
+        body: '# Auth middleware\n\n## Definition of Done\n- guard tests green\n',
+      };
+
+      // Act
+      await service.createTask(input);
+      const saved = await service.getTask('auth.middleware');
+
+      // Assert
+      expect(saved?.body).toContain('## Definition of Done');
+      expect(saved?.body).toContain('guard tests green');
+    });
+  });
+
+  describe('getTaskFilePath', () => {
+    it('delegates to the repository for an existing task', async () => {
+      await service.createTask({
+        id: 'auth.login',
+        module: 'auth',
+        description: 'Login',
+      });
+
+      const filePath = await service.getTaskFilePath('auth.login');
+
+      expect(filePath).toBe('/mock/auth/login.md');
+    });
+
+    it('returns null for an unknown task', async () => {
+      expect(await service.getTaskFilePath('nope.task')).toBeNull();
+    });
   });
 
   describe('getTask', () => {

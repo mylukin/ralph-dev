@@ -607,4 +607,19 @@ describe('Task Domain Entity', () => {
       expect(task.isTerminal()).toBe(true);
     });
   });
+
+  describe('body', () => {
+    it('exposes the verbatim body provided at construction', () => {
+      const body = '# Title\n\n## Interface / Contract\nfoo(): void\n';
+      const task = new Task({ ...baseConfig, body });
+
+      expect(task.body).toBe(body);
+    });
+
+    it('is undefined when no body is provided', () => {
+      const task = new Task(baseConfig);
+
+      expect(task.body).toBeUndefined();
+    });
+  });
 });

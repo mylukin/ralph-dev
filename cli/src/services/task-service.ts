@@ -44,6 +44,11 @@ export interface CreateTaskInput {
   acceptanceCriteria?: string[];
   dependencies?: string[];
   testPattern?: string;
+  /**
+   * Full Markdown body for the task file (enriched 8-section template).
+   * When provided, it is preserved verbatim across status transitions.
+   */
+  body?: string;
 }
 
 export interface BatchOperation {
@@ -83,6 +88,11 @@ export interface ITaskService {
    * Get next task to work on (highest priority, dependencies satisfied)
    */
   getNextTask(): Promise<Task | null>;
+
+  /**
+   * Resolve the absolute path of a task's Markdown file
+   */
+  getTaskFilePath(taskId: string): Promise<string | null>;
 
   /**
    * Start a task (mark as in_progress)
@@ -178,6 +188,7 @@ export class TaskService implements ITaskService {
           }
         : undefined,
       notes: '',
+      body: input.body,
     });
 
     // Save to repository
@@ -284,6 +295,10 @@ export class TaskService implements ITaskService {
 
     this.logger.info(`Next task: ${nextTask.id}`);
     return nextTask;
+  }
+
+  async getTaskFilePath(taskId: string): Promise<string | null> {
+    return this.taskRepository.getFilePath(taskId);
   }
 
   async startTask(taskId: string): Promise<Task> {

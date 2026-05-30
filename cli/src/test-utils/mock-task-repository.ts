@@ -45,8 +45,10 @@ export class MockTaskRepository implements ITaskRepository {
   }
 
   async save(task: Task): Promise<void> {
-    // Create a deep copy using JSON serialization to avoid mutations
-    const taskCopy = Task.fromJSON(task.toJSON());
+    // Create a deep copy using JSON serialization to avoid mutations.
+    // `body` is intentionally absent from toJSON() (kept out of CLI projections),
+    // so carry it across explicitly to preserve the verbatim body.
+    const taskCopy = Task.fromJSON({ ...task.toJSON(), body: task.body });
     this.tasks.set(task.id, taskCopy);
   }
 
@@ -66,6 +68,15 @@ export class MockTaskRepository implements ITaskRepository {
     // Sort by priority (ascending) and return first
     pendingTasks.sort((a, b) => a.priority - b.priority);
     return pendingTasks[0];
+  }
+
+  async getFilePath(taskId: string): Promise<string | null> {
+    const task = this.tasks.get(taskId);
+    if (!task) {
+      return null;
+    }
+    const fileName = task.id.replace(`${task.module}.`, '') + '.md';
+    return `/mock/${task.module}/${fileName}`;
   }
 
   // Test helper methods
@@ -103,7 +114,7 @@ export class MockTaskRepository implements ITaskRepository {
    */
   seed(tasks: Task[]): void {
     tasks.forEach((task) => {
-      this.tasks.set(task.id, Task.fromJSON(task.toJSON()));
+      this.tasks.set(task.id, Task.fromJSON({ ...task.toJSON(), body: task.body }));
     });
   }
 }

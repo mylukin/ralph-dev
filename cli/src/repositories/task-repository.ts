@@ -47,4 +47,11 @@ export interface ITaskRepository {
    * @returns Next task or null if no pending tasks
    */
   findNext(): Promise<Task | null>;
+
+  /**
+   * Resolve the absolute path of a task's Markdown file.
+   * @param taskId - Task identifier
+   * @returns Absolute file path, or null if the task is not in the index
+   */
+  getFilePath(taskId: string): Promise<string | null>;
 }

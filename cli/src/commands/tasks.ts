@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import * as path from 'path';
+import { readFile } from 'fs/promises';
 import chalk from 'chalk';
 import { ExitCode } from '../core/exit-codes';
 import { handleError, Errors } from '../core/error-handler';
@@ -154,6 +155,7 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
     .option('--criteria <criteria...>', 'Acceptance criteria (can specify multiple)')
     .option('--dependencies <deps...>', 'Task dependencies')
     .option('--test-pattern <pattern>', 'Test file pattern')
+    .option('--body-file <path>', 'Path to a Markdown file holding the full enriched task body')
     .option('--json', 'Output as JSON')
     .action(async (taskId, options) => {
       // Resolve task ID: positional argument takes precedence over --id option
@@ -164,6 +166,17 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
       }
 
       try {
+        // Read enriched body from file when provided (8-section template)
+        let body: string | undefined;
+        if (options.bodyFile) {
+          try {
+            body = await readFile(path.resolve(options.bodyFile), 'utf-8');
+          } catch {
+            handleError(Errors.invalidInput(`Cannot read --body-file: ${options.bodyFile}`), options.json);
+            return;
+          }
+        }
+
         // Call service to create task
         const task = await taskService.createTask({
           id: resolvedId,
@@ -174,6 +187,7 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
           acceptanceCriteria: options.criteria,
           dependencies: options.dependencies,
           testPattern: options.testPattern,
+          body,
         });
 
         const response = successResponse({
@@ -278,9 +292,13 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
         // Gather context using ContextService
         const context = await contextService.gatherTaskContext(task);
 
+        // Resolve the task file path so the implementer can read the full
+        // enriched body (接口/契約, TDD, 完成定义 DoD, …) directly.
+        const filePath = await taskService.getTaskFilePath(task.id);
+
         // Format output
         if (options.json) {
-          console.log(JSON.stringify({ task: task.toJSON(), context }, null, 2));
+          console.log(JSON.stringify({ task: task.toJSON(), filePath, context }, null, 2));
         } else {
           formatNextTaskOutput(task, context);
         }
@@ -307,7 +325,8 @@ export function registerTaskCommands(program: Command, workspaceDir: string): vo
 
         // Format output
         if (options.json) {
-          console.log(JSON.stringify(task.toJSON(), null, 2));
+          const filePath = await taskService.getTaskFilePath(task.id);
+          console.log(JSON.stringify({ ...task.toJSON(), filePath }, null, 2));
         } else {
           console.log(chalk.bold(`Task: ${chalk.cyan(task.id)}`));
           console.log(`Module: ${task.module}`);

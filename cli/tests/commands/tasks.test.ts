@@ -218,6 +218,51 @@ describe('tasks commands', () => {
       expect(content).toContain('testRequirements');
       expect(content).toContain('**/*.test.ts');
     });
+
+    it('should store the enriched body from --body-file verbatim', async () => {
+      const bodyFile = path.join(testDir, 'enriched-body.md');
+      const enrichedBody = `# Auth middleware
+
+## Context
+Guard protected routes.
+
+## Interface / Contract
+requireAuth(req, res, next) -> 401 when token missing.
+
+## Definition of Done
+- all guard tests green
+`;
+      fs.writeFileSync(bodyFile, enrichedBody);
+
+      registerTaskCommands(program, testDir);
+      await program.parseAsync([
+        'node', 'test', 'tasks', 'create',
+        '--id', 'auth.middleware',
+        '--module', 'auth',
+        '--description', 'Auth middleware',
+        '--body-file', bodyFile,
+      ]);
+
+      const content = fs.readFileSync(path.join(tasksDir, 'auth', 'middleware.md'), 'utf-8');
+      expect(content).toContain('## Context');
+      expect(content).toContain('## Interface / Contract');
+      expect(content).toContain('requireAuth(req, res, next)');
+      expect(content).toContain('## Definition of Done');
+    });
+
+    it('should error when --body-file does not exist', async () => {
+      registerTaskCommands(program, testDir);
+      await program.parseAsync([
+        'node', 'test', 'tasks', 'create',
+        '--id', 'auth.ghost',
+        '--module', 'auth',
+        '--description', 'Missing body file',
+        '--body-file', path.join(testDir, 'does-not-exist.md'),
+      ]);
+
+      const errorMessage = consoleErrorSpy.mock.calls.flat().join(' ');
+      expect(errorMessage).toContain('Cannot read --body-file');
+    });
   });
 
   describe('tasks list', () => {
@@ -390,6 +435,22 @@ Use JWT for authentication
       const processExited = processExitSpy.mock.calls.length > 0;
 
       expect(errorLogged || processExited).toBe(true);
+    });
+
+    it('should include an absolute filePath in --json output', async () => {
+      registerTaskCommands(program, testDir);
+      await program.parseAsync(['node', 'test', 'tasks', 'get', 'auth.login', '--json']);
+
+      const jsonOutput = consoleLogSpy.mock.calls
+        .flat()
+        .find((c: unknown) => typeof c === 'string' && (c as string).includes('"id"'));
+      expect(jsonOutput).toBeDefined();
+
+      const parsed = JSON.parse(jsonOutput as string);
+      expect(parsed.id).toBe('auth.login');
+      expect(parsed.filePath).toBeDefined();
+      expect(path.isAbsolute(parsed.filePath)).toBe(true);
+      expect(parsed.filePath).toContain(path.join('auth', 'login.md'));
     });
   });
 

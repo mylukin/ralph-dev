@@ -29,6 +29,13 @@ export interface TaskConfig {
   dependencies?: string[];
   testRequirements?: TaskTestRequirements;
   notes?: string;
+  /**
+   * Full Markdown body of the task file, verbatim (everything after the YAML
+   * frontmatter). Holds author-owned enriched sections (接口/契约, TDD,
+   * 完成定义 DoD, …) that must survive status transitions. When present, the
+   * repository writes it back unchanged instead of regenerating from fields.
+   */
+  body?: string;
   startedAt?: string;
   completedAt?: string;
   failedAt?: string;
@@ -61,6 +68,7 @@ export class Task {
   public readonly dependencies: string[];
   public readonly testRequirements?: TaskTestRequirements;
   private _notes?: string;
+  private _body?: string;
 
   constructor(config: TaskConfig) {
     this.id = config.id;
@@ -73,6 +81,7 @@ export class Task {
     this.dependencies = config.dependencies || [];
     this.testRequirements = config.testRequirements;
     this._notes = config.notes;
+    this._body = config.body;
 
     // Parse timestamps
     this._startedAt = config.startedAt ? new Date(config.startedAt) : undefined;
@@ -99,6 +108,14 @@ export class Task {
 
   get notes(): string | undefined {
     return this._notes;
+  }
+
+  /**
+   * Verbatim Markdown body of the task file (author-owned enriched sections).
+   * Undefined for tasks created without a rich body (e.g. plain `tasks create`).
+   */
+  get body(): string | undefined {
+    return this._body;
   }
 
   /**

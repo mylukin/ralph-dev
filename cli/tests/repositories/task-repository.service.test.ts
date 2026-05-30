@@ -578,4 +578,173 @@ status: completed
       expect(nextTask?.id).toBe('auth.login');
     });
   });
+
+  describe('enriched body preservation', () => {
+    const enrichedContent = `---
+id: auth.middleware
+module: auth
+priority: 2
+status: pending
+estimatedMinutes: 25
+---
+
+# Auth middleware
+
+## 目标 / Context
+Protect routes with a JWT guard.
+
+## 接口 / 契约
+\`requireAuth(req, res, next)\` → 401 when token missing/invalid.
+
+## TDD
+- rejects missing Authorization header
+- rejects expired token
+
+## 完成定义 DoD
+- all guard tests green
+
+## Acceptance Criteria
+1. Valid token passes through
+2. Invalid token returns 401
+`;
+
+    function seedEnriched(): void {
+      const taskFilePath = path.join(tasksDir, 'auth', 'middleware.md');
+      mockFs.setFile(taskFilePath, enrichedContent);
+      mockFs.setFile(
+        path.join(tasksDir, 'index.json'),
+        JSON.stringify({
+          version: '1.0.0',
+          updatedAt: '2026-01-20T00:00:00Z',
+          metadata: { projectGoal: 'Build auth system' },
+          tasks: {
+            'auth.middleware': {
+              status: 'pending',
+              priority: 2,
+              module: 'auth',
+              description: 'Auth middleware',
+              filePath: 'auth/middleware.md',
+            },
+          },
+        })
+      );
+    }
+
+    it('parses the full body verbatim into task.body', async () => {
+      seedEnriched();
+
+      const task = await repository.findById('auth.middleware');
+
+      expect(task).not.toBeNull();
+      expect(task?.body).toContain('## 接口 / 契约');
+      expect(task?.body).toContain('## TDD');
+      expect(task?.body).toContain('## 完成定义 DoD');
+    });
+
+    it('preserves custom sections across a status change', async () => {
+      seedEnriched();
+
+      // Read → transition → save (the exact lifecycle that used to wipe sections)
+      const task = await repository.findById('auth.middleware');
+      task!.start();
+      await repository.save(task!);
+
+      const taskFilePath = path.join(tasksDir, 'auth', 'middleware.md');
+      const fileContent = (await mockFs.readFile(taskFilePath, 'utf-8')) as string;
+
+      // Frontmatter was regenerated with the new status …
+      expect(fileContent).toContain('status: in_progress');
+      // … but every enriched section survived verbatim.
+      expect(fileContent).toContain('## 目标 / Context');
+      expect(fileContent).toContain('## 接口 / 契约');
+      expect(fileContent).toContain('requireAuth(req, res, next)');
+      expect(fileContent).toContain('## TDD');
+      expect(fileContent).toContain('## 完成定义 DoD');
+    });
+
+    it('round-trips an enriched body without drift', async () => {
+      seedEnriched();
+
+      const first = await repository.findById('auth.middleware');
+      await repository.save(first!);
+      const after = await repository.findById('auth.middleware');
+
+      expect(after?.body).toBe(first?.body);
+    });
+
+    it('stores a body provided at creation verbatim', async () => {
+      const task: Task = {
+        id: 'auth.session',
+        module: 'auth',
+        priority: 1,
+        status: 'pending',
+        description: 'Session store',
+        acceptanceCriteria: ['Criterion 1'],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        body: '# Session store\n\n## 接口 / 契约\ncreateSession(userId): string\n',
+      } as any;
+
+      await repository.save(task);
+
+      const fileContent = (await mockFs.readFile(
+        path.join(tasksDir, 'auth', 'session.md'),
+        'utf-8'
+      )) as string;
+      expect(fileContent).toContain('## 接口 / 契约');
+      expect(fileContent).toContain('createSession(userId): string');
+    });
+
+    it('falls back to field-generated body when no body is provided', async () => {
+      const task: Task = {
+        id: 'auth.logout',
+        module: 'auth',
+        priority: 1,
+        status: 'pending',
+        description: 'Logout endpoint',
+        acceptanceCriteria: ['Clears the session'],
+      };
+
+      await repository.save(task);
+
+      const fileContent = (await mockFs.readFile(
+        path.join(tasksDir, 'auth', 'logout.md'),
+        'utf-8'
+      )) as string;
+      expect(fileContent).toContain('# Logout endpoint');
+      expect(fileContent).toContain('## Acceptance Criteria');
+      expect(fileContent).toContain('1. Clears the session');
+    });
+  });
+
+  describe('getFilePath', () => {
+    it('resolves the absolute path of an indexed task', async () => {
+      mockFs.setFile(
+        path.join(tasksDir, 'index.json'),
+        JSON.stringify({
+          version: '1.0.0',
+          updatedAt: '2026-01-20T00:00:00Z',
+          metadata: { projectGoal: 'g' },
+          tasks: {
+            'auth.login': {
+              status: 'pending',
+              priority: 1,
+              module: 'auth',
+              description: 'Login',
+              filePath: 'auth/login.md',
+            },
+          },
+        })
+      );
+
+      const filePath = await repository.getFilePath('auth.login');
+
+      expect(filePath).not.toBeNull();
+      expect(path.isAbsolute(filePath as string)).toBe(true);
+      expect(filePath).toContain(path.join('auth', 'login.md'));
+    });
+
+    it('returns null for an unknown task', async () => {
+      expect(await repository.getFilePath('nope.task')).toBeNull();
+    });
+  });
 });
